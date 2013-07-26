@@ -237,7 +237,6 @@ libc_bionic_src_files := \
     bionic/assert.cpp \
     bionic/brk.cpp \
     bionic/dirent.cpp \
-    bionic/__errno.c \
     bionic/eventfd_read.cpp \
     bionic/eventfd_write.cpp \
     bionic/__fgets_chk.cpp \
@@ -279,7 +278,6 @@ libc_bionic_src_files := \
     bionic/__strncpy_chk.cpp \
     bionic/strsignal.cpp \
     bionic/stubs.cpp \
-    bionic/sysconf.cpp \
     bionic/tdestroy.cpp \
     bionic/tmpfile.cpp \
     bionic/__umask_chk.cpp \
@@ -361,6 +359,23 @@ libc_upstream_netbsd_src_files := \
     upstream-netbsd/libc/string/strcoll.c \
     upstream-netbsd/libc/string/strxfrm.c \
     upstream-netbsd/libc/unistd/killpg.c \
+
+# The following files are common, but must be compiled
+# with different C flags when building a static C library.
+#
+# The reason for this is the implementation of __get_tls()
+# that will differ between the shared and static versions
+# of the library.
+#
+# See comments in private/bionic_tls.h for more details.
+#
+# NOTE: bionic/pthread.c is added later to this list
+#       because it needs special handling on ARM, see
+#       below.
+#
+libc_static_common_src_files := \
+        bionic/__errno.c \
+        bionic/sysconf.cpp \
 
 # Architecture specific source files go here
 # =========================================================
@@ -492,6 +507,16 @@ ifeq ($(TARGET_ARCH),arm)
   libc_common_cflags += -DSOFTFLOAT
   libc_common_cflags += -fstrict-aliasing
   libc_crt_target_cflags := -mthumb-interwork
+  #
+  # Define HAVE_ARM_TLS_REGISTER macro to indicate to the C library
+  # that it should access the hardware TLS register directly in
+  # private/bionic_tls.h
+  #
+  # The value must match your kernel configuration
+  #
+  ifeq ($(ARCH_ARM_HAVE_TLS_REGISTER),true)
+    libc_common_cflags += -DHAVE_ARM_TLS_REGISTER
+  endif
 endif # !arm
 
 ifeq ($(TARGET_ARCH),x86)
@@ -775,10 +800,10 @@ include $(BUILD_STATIC_LIBRARY)
 # ========================================================
 #
 # This is a version of the static C library that does not
-# include malloc. It's useful in situations when the user wants
-# to provide their own malloc implementation, or wants to
-# explicitly disallow the use of the use of malloc,
-# such as in the dynamic loader.
+# include malloc. It's useful in situations when calling
+# the user wants to provide their own malloc implementation,
+# or wants to explicitly disallow the use of the use of malloc,
+# like the dynamic loader.
 
 include $(CLEAR_VARS)
 
