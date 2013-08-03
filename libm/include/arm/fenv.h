@@ -65,15 +65,19 @@ extern const fenv_t __fe_dfl_env;
 #define FE_DFL_ENV (&__fe_dfl_env)
 
 static __inline int fegetenv(fenv_t* __envp) {
+#ifdef __ARM_ARCH_7A__
   fenv_t _fpscr;
   __asm__ __volatile__("vmrs %0,fpscr" : "=r" (_fpscr));
   *__envp = _fpscr;
+#endif
   return 0;
 }
 
 static __inline int fesetenv(const fenv_t* __envp) {
+#ifdef __ARM_ARCH_7A__
   fenv_t _fpscr = *__envp;
   __asm__ __volatile__("vmsr fpscr,%0" : :"ri" (_fpscr));
+#endif
   return 0;
 }
 
