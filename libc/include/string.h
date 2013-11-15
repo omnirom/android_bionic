@@ -149,7 +149,7 @@ extern size_t __strlcpy_real(char* __restrict, const char* __restrict, size_t)
 __errordecl(__strlcpy_error, "strlcpy called with size bigger than buffer");
 extern size_t __strlcpy_chk(char *, const char *, size_t, size_t);
 
-__BIONIC_FORTIFY_INLINE
+__BIONIC_FORTIFY_INLINE_WITHOUT_ALWAYS
 size_t strlcpy(char* __restrict dest, const char* __restrict src, size_t size) {
     size_t bos = __bos(dest);
 

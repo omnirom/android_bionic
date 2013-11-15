@@ -538,6 +538,9 @@
     extern inline \
     __attribute__ ((always_inline)) \
     __attribute__ ((gnu_inline))
+#define __BIONIC_FORTIFY_INLINE_WITHOUT_ALWAYS \
+    extern inline \
+    __attribute__ ((gnu_inline))
 #endif
 #define __BIONIC_FORTIFY_UNKNOWN_SIZE ((size_t) -1)
 

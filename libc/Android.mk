@@ -102,6 +102,7 @@ libc_common_src_files := \
 	bionic/ldexp.c \
 	bionic/lseek64.c \
 	bionic/md5.c \
+	bionic/memchr.c \
 	bionic/memmem.c \
 	bionic/memswap.c \
 	bionic/name_mem.c \
@@ -371,7 +372,6 @@ libc_common_src_files += \
 	string/strncpy.c \
 	bionic/strchr.cpp \
 	string/strrchr.c \
-	bionic/memchr.c \
 	bionic/memrchr.c \
 	string/index.c \
 	bionic/strnlen.c \
@@ -397,8 +397,7 @@ libc_common_src_files += \
 libc_static_common_src_files += \
     bionic/pthread.c.arm \
     bionic/pthread_create.cpp.arm \
-    bionic/pthread_key.cpp.arm \
-
+    bionic/pthread_key.cpp.arm
 endif # arm
 
 ifeq ($(TARGET_ARCH),x86)

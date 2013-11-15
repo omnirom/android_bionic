@@ -454,7 +454,7 @@ __END_DECLS
 
 __BEGIN_DECLS
 
-__BIONIC_FORTIFY_INLINE
+__BIONIC_FORTIFY_INLINE_WITHOUT_ALWAYS
 __printflike(3, 0)
 int vsnprintf(char *dest, size_t size, const char *format, __va_list ap)
 {
