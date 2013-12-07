@@ -141,8 +141,6 @@ libc_common_src_files := \
 	bionic/strntoimax.c \
 	bionic/strntoumax.c \
 	bionic/strtotimeval.c \
-	bionic/system_properties.c \
-	bionic/system_properties_compat.c \
 	bionic/tcgetpgrp.c \
 	bionic/tcsetpgrp.c \
 	bionic/thread_atexit.c \
@@ -180,6 +178,15 @@ libc_common_src_files := \
 	netbsd/nameser/ns_netint.c \
 	netbsd/nameser/ns_print.c \
 	netbsd/nameser/ns_samedomain.c \
+
+ifeq ($(BUILD_OLD_SYS_PROPS),true)
+libc_common_src_files += \
+	bionic/system_properties_old.c
+else
+libc_common_src_files += \
+	bionic/system_properties.c \
+	bionic/system_properties_compat.c
+endif
 
 # Fortify implementations of libc functions.
 libc_common_src_files += \
