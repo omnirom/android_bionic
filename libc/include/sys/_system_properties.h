@@ -32,6 +32,8 @@
 #ifndef _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #error you should #include <sys/system_properties.h> instead
 #else
+#ifndef BUILD_OLD_SYS_PROPS
+
 #include <sys/system_properties.h>
 
 typedef struct prop_msg prop_msg;
@@ -141,5 +143,82 @@ int __system_property_foreach_compat(
 
 __END_DECLS
 
+#else // #ifndef BUILD_OLD_SYS_PROPS
+
+#include <sys/system_properties.h>
+
+typedef struct prop_area prop_area;
+typedef struct prop_msg prop_msg;
+
+#define PROP_AREA_MAGIC   0x504f5250
+#define PROP_AREA_VERSION 0x45434f76
+
+#define PROP_SERVICE_NAME "property_service"
+#define PROP_FILENAME "/dev/__properties__"
+
+/* #define PROP_MAX_ENTRIES 247 */
+/* 247 -> 32620 bytes (<32768) */
+
+#define TOC_NAME_LEN(toc)       ((toc) >> 24)
+#define TOC_TO_INFO(area, toc)  ((prop_info*) (((char*) area) + ((toc) & 0xFFFFFF)))
+
+struct prop_area {
+    unsigned volatile count;
+    unsigned volatile serial;
+    unsigned magic;
+    unsigned version;
+    unsigned reserved[4];
+    unsigned toc[1];
+};
+
+#define SERIAL_VALUE_LEN(serial) ((serial) >> 24)
+#define SERIAL_DIRTY(serial) ((serial) & 1)
+
+struct prop_info {
+    char name[PROP_NAME_MAX];
+    unsigned volatile serial;
+    char value[PROP_VALUE_MAX];
+};
+
+struct prop_msg
+{
+    unsigned cmd;
+    char name[PROP_NAME_MAX];
+    char value[PROP_VALUE_MAX];
+};
+
+#define PROP_MSG_SETPROP 1
+
+/*
+** Rules:
+**
+** - there is only one writer, but many readers
+** - prop_area.count will never decrease in value
+** - once allocated, a prop_info's name will not change
+** - once allocated, a prop_info's offset will not change
+** - reading a value requires the following steps
+**   1. serial = pi->serial
+**   2. if SERIAL_DIRTY(serial), wait*, then goto 1
+**   3. memcpy(local, pi->value, SERIAL_VALUE_LEN(serial) + 1)
+**   4. if pi->serial != serial, goto 2
+**
+** - writing a value requires the following steps
+**   1. pi->serial = pi->serial | 1
+**   2. memcpy(pi->value, local_value, value_len)
+**   3. pi->serial = (value_len << 24) | ((pi->serial + 1) & 0xffffff)
+**
+** Improvements:
+** - maintain the toc sorted by pi->name to allow lookup
+**   by binary search
+**
+*/
+
+#define PROP_PATH_RAMDISK_DEFAULT  "/default.prop"
+#define PROP_PATH_SYSTEM_BUILD     "/system/build.prop"
+#define PROP_PATH_SYSTEM_DEFAULT   "/system/default.prop"
+#define PROP_PATH_LOCAL_OVERRIDE   "/data/local.prop"
+#define PROP_PATH_FACTORY          "/factory/factory.prop"
+
+#endif // #ifndef BUILD_OLD_SYS_PROPS
 #endif
 #endif
