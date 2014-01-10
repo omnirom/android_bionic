@@ -14,6 +14,8 @@ libm_common_src_files += \
     upstream-freebsd/lib/msun/bsdsrc/b_exp.c \
     upstream-freebsd/lib/msun/bsdsrc/b_log.c \
     upstream-freebsd/lib/msun/bsdsrc/b_tgamma.c \
+    upstream-freebsd/lib/msun/src/catrig.c \
+    upstream-freebsd/lib/msun/src/catrigf.c \
     upstream-freebsd/lib/msun/src/e_acos.c \
     upstream-freebsd/lib/msun/src/e_acosf.c \
     upstream-freebsd/lib/msun/src/e_acosh.c \
@@ -181,12 +183,16 @@ libm_common_src_files += fake_long_double.c
 
 # TODO: on Android, "long double" is "double".
 #    upstream-freebsd/lib/msun/src/e_acosl.c \
+#    upstream-freebsd/lib/msun/src/e_acoshl.c \
 #    upstream-freebsd/lib/msun/src/e_asinl.c \
+#    upstream-freebsd/lib/msun/src/e_asinhl.c \
 #    upstream-freebsd/lib/msun/src/e_atan2l.c \
+#    upstream-freebsd/lib/msun/src/e_atanhl.c \
 #    upstream-freebsd/lib/msun/src/e_fmodl.c \
 #    upstream-freebsd/lib/msun/src/e_hypotl.c \
 #    upstream-freebsd/lib/msun/src/e_remainderl.c \
 #    upstream-freebsd/lib/msun/src/e_sqrtl.c \
+#    upstream-freebsd/lib/msun/src/imprecise.c \
 #    upstream-freebsd/lib/msun/src/s_atanl.c \
 #    upstream-freebsd/lib/msun/src/s_cbrtl.c \
 #    upstream-freebsd/lib/msun/src/s_ceill.c \
