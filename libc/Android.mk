@@ -179,14 +179,12 @@ libc_common_src_files := \
 	netbsd/nameser/ns_print.c \
 	netbsd/nameser/ns_samedomain.c \
 
-ifeq ($(BUILD_OLD_SYS_PROPS),true)
-libc_common_src_files += \
+libc_old_props_src_files += \
 	bionic/system_properties_old.c
-else
-libc_common_src_files += \
+
+libc_new_props_src_files += \
 	bionic/system_properties.c \
 	bionic/system_properties_compat.c
-endif
 
 # Fortify implementations of libc functions.
 libc_common_src_files += \
@@ -799,12 +797,40 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := $(libc_common_src_files)
+LOCAL_SRC_FILES := $(libc_common_src_files) $(libc_new_props_src_files)
 LOCAL_CFLAGS := $(libc_common_cflags) \
     -std=gnu99 \
     -I$(LOCAL_PATH)/upstream-netbsd/libc/include # for netbsd private headers
 LOCAL_C_INCLUDES := $(libc_common_c_includes)
 LOCAL_MODULE := libc_common
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+LOCAL_WHOLE_STATIC_LIBRARIES := \
+    libbionic_ssp \
+    libc_bionic \
+    libc_freebsd \
+    libc_netbsd \
+    libc_tzcode
+LOCAL_SYSTEM_SHARED_LIBRARIES :=
+
+# TODO: split out the asflags.
+LOCAL_ASFLAGS := $(LOCAL_CFLAGS)
+
+include $(BUILD_STATIC_LIBRARY)
+
+
+# ========================================================
+# libc_common_oldprops.a
+# ========================================================
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := $(libc_common_src_files) $(libc_old_props_src_files)
+LOCAL_CFLAGS := $(libc_common_cflags) \
+    -std=gnu99 \
+    -I$(LOCAL_PATH)/upstream-netbsd/libc/include # for netbsd private headers
+LOCAL_CFLAGS += -DBUILD_OLD_SYS_PROPS
+LOCAL_C_INCLUDES := $(libc_common_c_includes)
+LOCAL_MODULE := libc_common_oldprops
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_WHOLE_STATIC_LIBRARIES := \
     libbionic_ssp \
@@ -875,6 +901,30 @@ include $(BUILD_STATIC_LIBRARY)
 
 
 # ========================================================
+# libc_oldprops.a
+# ========================================================
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
+	$(libc_arch_static_src_files) \
+	$(libc_static_common_src_files) \
+	bionic/dlmalloc.c \
+	bionic/malloc_debug_common.cpp \
+	bionic/libc_init_static.cpp
+
+LOCAL_CFLAGS := $(libc_common_cflags) \
+                -DLIBC_STATIC \
+                -std=gnu99
+LOCAL_C_INCLUDES := $(libc_common_c_includes)
+LOCAL_MODULE := libc_oldprops
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+LOCAL_WHOLE_STATIC_LIBRARIES := libc_common_oldprops
+LOCAL_SYSTEM_SHARED_LIBRARIES :=
+
+include $(BUILD_STATIC_LIBRARY)
+
+
+# ========================================================
 # libc.so
 # ========================================================
 include $(CLEAR_VARS)
@@ -921,6 +971,58 @@ LOCAL_REQUIRED_MODULES := tzdata
 
 LOCAL_SHARED_LIBRARIES := libdl
 LOCAL_WHOLE_STATIC_LIBRARIES := libc_common
+LOCAL_SYSTEM_SHARED_LIBRARIES :=
+
+include $(BUILD_SHARED_LIBRARY)
+
+
+# ========================================================
+# libc_oldprops.so
+# ========================================================
+include $(CLEAR_VARS)
+
+# pthread deadlock prediction:
+# set -DPTHREAD_DEBUG -DPTHREAD_DEBUG_ENABLED=1 to enable support for
+# pthread deadlock prediction.
+# Since this code is experimental it is disabled by default.
+# see libc/bionic/pthread_debug.c for details
+
+LOCAL_CFLAGS := $(libc_common_cflags) -std=gnu99 -DPTHREAD_DEBUG -DPTHREAD_DEBUG_ENABLED=0
+LOCAL_C_INCLUDES := $(libc_common_c_includes)
+
+LOCAL_SRC_FILES := \
+	$(libc_arch_dynamic_src_files) \
+	$(libc_static_common_src_files) \
+	bionic/dlmalloc.c \
+	bionic/malloc_debug_common.cpp \
+	bionic/pthread_debug.cpp \
+	bionic/libc_init_dynamic.cpp
+
+ifeq ($(TARGET_ARCH),arm)
+	LOCAL_NO_CRT := true
+	LOCAL_CFLAGS += -DCRT_LEGACY_WORKAROUND
+
+	LOCAL_SRC_FILES := \
+		arch-arm/bionic/crtbegin_so.c \
+		arch-arm/bionic/atexit_legacy.c \
+		$(LOCAL_SRC_FILES) \
+		arch-arm/bionic/crtend_so.S
+endif
+
+LOCAL_MODULE:= libc_oldprops
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+LOCAL_REQUIRED_MODULES := tzdata
+
+# WARNING: The only library libc.so should depend on is libdl.so!  If you add other libraries,
+# make sure to add -Wl,--exclude-libs=libgcc.a to the LOCAL_LDFLAGS for those libraries.  This
+# ensures that symbols that are pulled into those new libraries from libgcc.a are not declared
+# external; if that were the case, then libc would not pull those symbols from libgcc.a as it
+# should, instead relying on the external symbols from the dependent libraries.  That would
+# create an "cloaked" dependency on libgcc.a in libc though the libraries, which is not what
+# you wanted!
+
+LOCAL_SHARED_LIBRARIES := libdl
+LOCAL_WHOLE_STATIC_LIBRARIES := libc_common_oldprops
 LOCAL_SYSTEM_SHARED_LIBRARIES :=
 
 include $(BUILD_SHARED_LIBRARY)
