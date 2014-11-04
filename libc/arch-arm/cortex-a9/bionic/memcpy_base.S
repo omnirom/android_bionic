@@ -32,8 +32,7 @@
  * cache line.
  */
 
-ENTRY(MEMCPY_BASE)
-        .cfi_startproc
+ENTRY_PRIVATE(MEMCPY_BASE)
         .save       {r0, lr}
         .cfi_def_cfa_offset 8
         .cfi_rel_offset r0, 0
@@ -137,13 +136,9 @@ ENTRY(MEMCPY_BASE)
 
         ldmfd       sp!, {r0, lr}
         bx          lr
-
-        .cfi_endproc
 END(MEMCPY_BASE)
 
-ENTRY(MEMCPY_BASE_ALIGNED)
-        .cfi_startproc
-
+ENTRY_PRIVATE(MEMCPY_BASE_ALIGNED)
         .save       {r0, lr}
         .cfi_def_cfa_offset 8
         .cfi_rel_offset r0, 0
@@ -228,6 +223,4 @@ ENTRY(MEMCPY_BASE_ALIGNED)
 6:
         ldmfd       sp!, {r4-r8}
         ldmfd       sp!, {r0, pc}
-
-        .cfi_endproc
 END(MEMCPY_BASE_ALIGNED)

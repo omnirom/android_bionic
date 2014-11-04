@@ -28,8 +28,6 @@
 
 #include "libc_init_common.h"
 
-#include <asm/page.h>
-#include <bionic_tls.h>
 #include <elf.h>
 #include <errno.h>
 #include <stddef.h>
@@ -38,18 +36,20 @@
 #include <stdlib.h>
 #include <sys/auxv.h>
 #include <sys/time.h>
-#include <sys/resource.h>
 #include <unistd.h>
 
-#include "atexit.h"
 #include "private/bionic_auxv.h"
 #include "private/bionic_ssp.h"
+#include "private/bionic_tls.h"
 #include "private/KernelArgumentBlock.h"
 #include "pthread_internal.h"
 
 extern "C" abort_msg_t** __abort_message_ptr;
-extern "C" unsigned __get_sp(void);
 extern "C" int __system_properties_init(void);
+extern "C" int __set_tls(void* ptr);
+extern "C" int __set_tid_address(int* tid_address);
+
+void __libc_init_vdso();
 
 // Not public, but well-known in the BSDs.
 const char* __progname;
@@ -57,34 +57,15 @@ const char* __progname;
 // Declared in <unistd.h>.
 char** environ;
 
-// Declared in <private/bionic_ssp.h>.
+// Declared in "private/bionic_ssp.h".
 uintptr_t __stack_chk_guard = 0;
-
-// Declared in <asm/page.h>.
-unsigned int __page_size = PAGE_SIZE;
-unsigned int __page_shift = PAGE_SHIFT;
-
-static size_t get_stack_size() {
-  const size_t minimal_stack_size = 128 * 1024;
-  size_t stack_size = minimal_stack_size;
-  struct rlimit stack_limit;
-  int rlimit_result = getrlimit(RLIMIT_STACK, &stack_limit);
-  if ((rlimit_result == 0) && (stack_limit.rlim_cur != RLIM_INFINITY)) {
-    stack_size = stack_limit.rlim_cur;
-    stack_size = (stack_size & ~(PAGE_SIZE - 1));
-    if (stack_size < minimal_stack_size) {
-      stack_size = minimal_stack_size;
-    }
-  }
-  return stack_size;
-}
 
 /* Init TLS for the initial thread. Called by the linker _before_ libc is mapped
  * in memory. Beware: all writes to libc globals from this function will
  * apply to linker-private copies and will not be visible from libc later on.
  *
  * Note: this function creates a pthread_internal_t for the initial thread and
- * stores the pointer in TLS, but does not add it to pthread's gThreadList. This
+ * stores the pointer in TLS, but does not add it to pthread's thread list. This
  * has to be done later from libc itself (see __libc_init_common).
  *
  * This function also stores a pointer to the kernel argument block in a TLS slot to be
@@ -93,19 +74,31 @@ static size_t get_stack_size() {
 void __libc_init_tls(KernelArgumentBlock& args) {
   __libc_auxv = args.auxv;
 
-  uintptr_t stack_top = (__get_sp() & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
-  size_t stack_size = get_stack_size();
-  uintptr_t stack_bottom = stack_top - stack_size;
-
   static void* tls[BIONIC_TLS_SLOTS];
-  static pthread_internal_t thread;
-  thread.tid = gettid();
-  thread.tls = tls;
-  pthread_attr_init(&thread.attr);
-  pthread_attr_setstack(&thread.attr, (void*) stack_bottom, stack_size);
-  _init_thread(&thread, false);
-  __init_tls(&thread);
+  static pthread_internal_t main_thread;
+  main_thread.tls = tls;
+
+  // Tell the kernel to clear our tid field when we exit, so we're like any other pthread.
+  // As a side-effect, this tells us our pid (which is the same as the main thread's tid).
+  main_thread.tid = __set_tid_address(&main_thread.tid);
+  main_thread.set_cached_pid(main_thread.tid);
+
+  // We don't want to free the main thread's stack even when the main thread exits
+  // because things like environment variables with global scope live on it.
+  // We also can't free the pthread_internal_t itself, since that lives on the main
+  // thread's stack rather than on the heap.
+  pthread_attr_init(&main_thread.attr);
+  main_thread.attr.flags = PTHREAD_ATTR_FLAG_USER_ALLOCATED_STACK | PTHREAD_ATTR_FLAG_MAIN_THREAD;
+  main_thread.attr.guard_size = 0; // The main thread has no guard page.
+  main_thread.attr.stack_size = 0; // User code should never see this; we'll compute it when asked.
+  // TODO: the main thread's sched_policy and sched_priority need to be queried.
+
+  __init_thread(&main_thread, false);
+  __init_tls(&main_thread);
+  __set_tls(main_thread.tls);
   tls[TLS_SLOT_BIONIC_PREINIT] = &args;
+
+  __init_alternate_signal_stack(&main_thread);
 }
 
 void __libc_init_common(KernelArgumentBlock& args) {
@@ -121,10 +114,11 @@ void __libc_init_common(KernelArgumentBlock& args) {
 
   // Get the main thread from TLS and add it to the thread list.
   pthread_internal_t* main_thread = __get_thread();
-  main_thread->allocated_on_heap = false;
   _pthread_internal_add(main_thread);
 
   __system_properties_init(); // Requires 'environ'.
+
+  __libc_init_vdso();
 }
 
 /* This function will be called during normal program termination

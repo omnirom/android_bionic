@@ -27,9 +27,21 @@
 #define ASSERT_SUBSTR(needle, haystack) \
     ASSERT_PRED_FORMAT2(::testing::IsSubstring, needle, haystack)
 
-static bool gCalled = false;
+static bool g_called = false;
 extern "C" void DlSymTestFunction() {
-  gCalled = true;
+  g_called = true;
+}
+
+static int g_ctor_function_called = 0;
+
+extern "C" void ctor_function() __attribute__ ((constructor));
+
+extern "C" void ctor_function() {
+  g_ctor_function_called = 17;
+}
+
+TEST(dlfcn, ctor_function_call) {
+  ASSERT_EQ(17, g_ctor_function_called);
 }
 
 TEST(dlfcn, dlsym_in_self) {
@@ -43,17 +55,42 @@ TEST(dlfcn, dlsym_in_self) {
 
   void (*function)() = reinterpret_cast<void(*)()>(sym);
 
-  gCalled = false;
+  g_called = false;
   function();
-  ASSERT_TRUE(gCalled);
+  ASSERT_TRUE(g_called);
 
   ASSERT_EQ(0, dlclose(self));
+}
+
+TEST(dlfcn, dlsym_with_dependencies) {
+  void* handle = dlopen("libtest_with_dependency.so", RTLD_NOW);
+  ASSERT_TRUE(handle != NULL);
+  dlerror();
+  // This symbol is in DT_NEEDED library.
+  void* sym = dlsym(handle, "getRandomNumber");
+  ASSERT_TRUE(sym != NULL);
+  int (*fn)(void);
+  fn = reinterpret_cast<int (*)(void)>(sym);
+  EXPECT_EQ(4, fn());
+  dlclose(handle);
+}
+
+TEST(dlfcn, dlopen_noload) {
+  void* handle = dlopen("libtest_simple.so", RTLD_NOW | RTLD_NOLOAD);
+  ASSERT_TRUE(handle == NULL);
+  handle = dlopen("libtest_simple.so", RTLD_NOW);
+  void* handle2 = dlopen("libtest_simple.so", RTLD_NOW | RTLD_NOLOAD);
+  ASSERT_TRUE(handle != NULL);
+  ASSERT_TRUE(handle2 != NULL);
+  ASSERT_TRUE(handle == handle2);
+  ASSERT_EQ(0, dlclose(handle));
+  ASSERT_EQ(0, dlclose(handle2));
 }
 
 TEST(dlfcn, dlopen_failure) {
   void* self = dlopen("/does/not/exist", RTLD_NOW);
   ASSERT_TRUE(self == NULL);
-#if __BIONIC__
+#if defined(__BIONIC__)
   ASSERT_STREQ("dlopen failed: library \"/does/not/exist\" not found", dlerror());
 #else
   ASSERT_STREQ("/does/not/exist: cannot open shared object file: No such file or directory", dlerror());
@@ -89,17 +126,16 @@ TEST(dlfcn, dlsym_failures) {
 
   void* sym;
 
-  // NULL handle.
+#if defined(__BIONIC__) && !defined(__LP64__)
+  // RTLD_DEFAULT in lp32 bionic is not (void*)0
+  // so it can be distinguished from the NULL handle.
   sym = dlsym(NULL, "test");
   ASSERT_TRUE(sym == NULL);
-#if __BIONIC__
   ASSERT_SUBSTR("dlsym library handle is null", dlerror());
-#else
-  ASSERT_SUBSTR("undefined symbol: test", dlerror()); // glibc isn't specific about the failure.
 #endif
 
   // NULL symbol name.
-#if __BIONIC__
+#if defined(__BIONIC__)
   // glibc marks this parameter non-null and SEGVs if you cheat.
   sym = dlsym(self, NULL);
   ASSERT_TRUE(sym == NULL);
@@ -152,10 +188,8 @@ TEST(dlfcn, dladdr) {
   // Look in /proc/pid/maps to find out what address we were loaded at.
   // TODO: factor /proc/pid/maps parsing out into a class and reuse all over bionic.
   void* base_address = NULL;
-  char path[PATH_MAX];
-  snprintf(path, sizeof(path), "/proc/%d/maps", getpid());
   char line[BUFSIZ];
-  FILE* fp = fopen(path, "r");
+  FILE* fp = fopen("/proc/self/maps", "r");
   ASSERT_TRUE(fp != NULL);
   while (fgets(line, sizeof(line), fp) != NULL) {
     uintptr_t start = strtoul(line, 0, 16);
@@ -206,7 +240,7 @@ TEST(dlfcn, dlopen_bad_flags) {
   dlerror(); // Clear any pending errors.
   void* handle;
 
-#ifdef __GLIBC__
+#if defined(__GLIBC__)
   // glibc was smart enough not to define RTLD_NOW as 0, so it can detect missing flags.
   handle = dlopen(NULL, 0);
   ASSERT_TRUE(handle == NULL);
@@ -221,4 +255,44 @@ TEST(dlfcn, dlopen_bad_flags) {
   handle = dlopen(NULL, RTLD_NOW|RTLD_LAZY);
   ASSERT_TRUE(handle != NULL);
   ASSERT_SUBSTR(NULL, dlerror());
+}
+
+TEST(dlfcn, rtld_default_unknown_symbol) {
+  void* addr = dlsym(RTLD_DEFAULT, "ANY_UNKNOWN_SYMBOL_NAME");
+  ASSERT_TRUE(addr == NULL);
+}
+
+TEST(dlfcn, rtld_default_known_symbol) {
+  void* addr = dlsym(RTLD_DEFAULT, "fopen");
+  ASSERT_TRUE(addr != NULL);
+}
+
+TEST(dlfcn, rtld_next_unknown_symbol) {
+  void* addr = dlsym(RTLD_NEXT, "ANY_UNKNOWN_SYMBOL_NAME");
+  ASSERT_TRUE(addr == NULL);
+}
+
+TEST(dlfcn, rtld_next_known_symbol) {
+  void* addr = dlsym(RTLD_NEXT, "fopen");
+  ASSERT_TRUE(addr != NULL);
+}
+
+TEST(dlfcn, dlsym_weak_func) {
+  dlerror();
+  void* handle = dlopen("libtest_dlsym_weak_func.so",RTLD_NOW);
+  ASSERT_TRUE(handle != NULL);
+
+  int (*weak_func)();
+  weak_func = reinterpret_cast<int (*)()>(dlsym(handle, "weak_func"));
+  ASSERT_TRUE(weak_func != NULL) << "dlerror: " << dlerror();
+  EXPECT_EQ(42, weak_func());
+  dlclose(handle);
+}
+
+TEST(dlfcn, dlopen_symlink) {
+  void* handle1 = dlopen("libdlext_test.so", RTLD_NOW);
+  void* handle2 = dlopen("libdlext_test_v2.so", RTLD_NOW);
+  ASSERT_TRUE(handle1 != NULL);
+  ASSERT_TRUE(handle2 != NULL);
+  ASSERT_EQ(handle1, handle2);
 }

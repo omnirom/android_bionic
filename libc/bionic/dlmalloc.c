@@ -16,7 +16,7 @@
 
 #include "dlmalloc.h"
 
-#include "private/bionic_name_mem.h"
+#include "private/bionic_prctl.h"
 #include "private/libc_logging.h"
 
 // Send dlmalloc errors to the log.
@@ -26,7 +26,7 @@ static void __bionic_heap_usage_error(const char* function, void* address);
 #define CORRUPTION_ERROR_ACTION(m) __bionic_heap_corruption_error(__FUNCTION__)
 #define USAGE_ERROR_ACTION(m,p) __bionic_heap_usage_error(__FUNCTION__, p)
 
-/* Bionic named anonymous memory declarations */
+// Bionic named anonymous memory declarations.
 static void* named_anonymous_mmap(size_t length);
 #define MMAP(s) named_anonymous_mmap(s)
 #define DIRECT_MMAP(s) named_anonymous_mmap(s)
@@ -34,10 +34,7 @@ static void* named_anonymous_mmap(size_t length);
 // Ugly inclusion of C file so that bionic specific #defines configure dlmalloc.
 #include "../upstream-dlmalloc/malloc.c"
 
-extern void (*__cleanup)();
-
 static void __bionic_heap_corruption_error(const char* function) {
-  __cleanup = NULL; // The heap is corrupt. We can forget trying to shut down stdio.
   __libc_fatal("heap corruption detected by %s", function);
 }
 
@@ -49,14 +46,11 @@ static void __bionic_heap_usage_error(const char* function, void* address) {
   *((int**) 0xdeadbaad) = (int*) address;
 }
 
-static void* named_anonymous_mmap(size_t length)
-{
-    void* ret;
-    ret = mmap(NULL, length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    if (ret == MAP_FAILED)
-        return ret;
-
-    __bionic_name_mem(ret, length, "libc_malloc");
-
-    return ret;
+static void* named_anonymous_mmap(size_t length) {
+  void* map = mmap(NULL, length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  if (map == MAP_FAILED) {
+    return map;
+  }
+  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, map, length, "libc_malloc");
+  return map;
 }

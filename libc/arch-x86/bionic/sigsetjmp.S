@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include <machine/asm.h>
+#include <private/bionic_asm.h>
 
 ENTRY(sigsetjmp)
 	movl	4(%esp),%ecx
@@ -42,11 +42,7 @@ ENTRY(sigsetjmp)
 
 	PIC_PROLOGUE
 	pushl	$0
-#ifdef PIC
-	call	PIC_PLT(_C_LABEL(sigblock))
-#else
-	call	_C_LABEL(sigblock)
-#endif
+	call	PIC_PLT(sigblock)
 	addl	$4,%esp
 	PIC_EPILOGUE
 
@@ -70,11 +66,7 @@ ENTRY(siglongjmp)
 
 	PIC_PROLOGUE
 	pushl	24(%edx)
-#ifdef PIC
-	call	PIC_PLT(_C_LABEL(sigsetmask))
-#else
-	call	_C_LABEL(sigsetmask)
-#endif
+	call	PIC_PLT(sigsetmask)
 	addl	$4,%esp
 	PIC_EPILOGUE
 

@@ -17,9 +17,18 @@
 #include <gtest/gtest.h>
 
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
+#include <malloc.h>
 #include <pthread.h>
+#include <signal.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
+
+#include "private/ScopeGuard.h"
+#include "ScopedSignalHandler.h"
 
 TEST(pthread, pthread_key_create) {
   pthread_key_t key;
@@ -29,14 +38,23 @@ TEST(pthread, pthread_key_create) {
   ASSERT_EQ(EINVAL, pthread_key_delete(key));
 }
 
-#if !defined(__GLIBC__) // glibc uses keys internally that its sysconf value doesn't account for.
 TEST(pthread, pthread_key_create_lots) {
+#if defined(__BIONIC__) // glibc uses keys internally that its sysconf value doesn't account for.
+  // POSIX says PTHREAD_KEYS_MAX should be at least 128.
+  ASSERT_GE(PTHREAD_KEYS_MAX, 128);
+
+  int sysconf_max = sysconf(_SC_THREAD_KEYS_MAX);
+
+  // sysconf shouldn't return a smaller value.
+  ASSERT_GE(sysconf_max, PTHREAD_KEYS_MAX);
+
   // We can allocate _SC_THREAD_KEYS_MAX keys.
+  sysconf_max -= 2; // (Except that gtest takes two for itself.)
   std::vector<pthread_key_t> keys;
-  for (int i = 0; i < sysconf(_SC_THREAD_KEYS_MAX); ++i) {
+  for (int i = 0; i < sysconf_max; ++i) {
     pthread_key_t key;
     // If this fails, it's likely that GLOBAL_INIT_THREAD_LOCAL_BUFFER_COUNT is wrong.
-    ASSERT_EQ(0, pthread_key_create(&key, NULL)) << i << " of " << sysconf(_SC_THREAD_KEYS_MAX);
+    ASSERT_EQ(0, pthread_key_create(&key, NULL)) << i << " of " << sysconf_max;
     keys.push_back(key);
   }
 
@@ -48,15 +66,81 @@ TEST(pthread, pthread_key_create_lots) {
   for (size_t i = 0; i < keys.size(); ++i) {
     ASSERT_EQ(0, pthread_key_delete(keys[i]));
   }
+#else // __BIONIC__
+  GTEST_LOG_(INFO) << "This test does nothing.\n";
+#endif // __BIONIC__
 }
-#endif
+
+TEST(pthread, pthread_key_delete) {
+  void* expected = reinterpret_cast<void*>(1234);
+  pthread_key_t key;
+  ASSERT_EQ(0, pthread_key_create(&key, NULL));
+  ASSERT_EQ(0, pthread_setspecific(key, expected));
+  ASSERT_EQ(expected, pthread_getspecific(key));
+  ASSERT_EQ(0, pthread_key_delete(key));
+  // After deletion, pthread_getspecific returns NULL.
+  ASSERT_EQ(NULL, pthread_getspecific(key));
+  // And you can't use pthread_setspecific with the deleted key.
+  ASSERT_EQ(EINVAL, pthread_setspecific(key, expected));
+}
+
+TEST(pthread, pthread_key_fork) {
+  void* expected = reinterpret_cast<void*>(1234);
+  pthread_key_t key;
+  ASSERT_EQ(0, pthread_key_create(&key, NULL));
+  ASSERT_EQ(0, pthread_setspecific(key, expected));
+  ASSERT_EQ(expected, pthread_getspecific(key));
+
+  pid_t pid = fork();
+  ASSERT_NE(-1, pid) << strerror(errno);
+
+  if (pid == 0) {
+    // The surviving thread inherits all the forking thread's TLS values...
+    ASSERT_EQ(expected, pthread_getspecific(key));
+    _exit(99);
+  }
+
+  int status;
+  ASSERT_EQ(pid, waitpid(pid, &status, 0));
+  ASSERT_TRUE(WIFEXITED(status));
+  ASSERT_EQ(99, WEXITSTATUS(status));
+
+  ASSERT_EQ(expected, pthread_getspecific(key));
+}
+
+static void* DirtyKeyFn(void* key) {
+  return pthread_getspecific(*reinterpret_cast<pthread_key_t*>(key));
+}
+
+TEST(pthread, pthread_key_dirty) {
+  pthread_key_t key;
+  ASSERT_EQ(0, pthread_key_create(&key, NULL));
+
+  size_t stack_size = 128 * 1024;
+  void* stack = mmap(NULL, stack_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  ASSERT_NE(MAP_FAILED, stack);
+  memset(stack, 0xff, stack_size);
+
+  pthread_attr_t attr;
+  ASSERT_EQ(0, pthread_attr_init(&attr));
+  ASSERT_EQ(0, pthread_attr_setstack(&attr, stack, stack_size));
+
+  pthread_t t;
+  ASSERT_EQ(0, pthread_create(&t, &attr, DirtyKeyFn, &key));
+
+  void* result;
+  ASSERT_EQ(0, pthread_join(t, &result));
+  ASSERT_EQ(nullptr, result); // Not ~0!
+
+  ASSERT_EQ(0, munmap(stack, stack_size));
+}
 
 static void* IdFn(void* arg) {
   return arg;
 }
 
 static void* SleepFn(void* arg) {
-  sleep(reinterpret_cast<unsigned int>(arg));
+  sleep(reinterpret_cast<uintptr_t>(arg));
   return NULL;
 }
 
@@ -140,7 +224,7 @@ TEST(pthread, pthread_no_op_detach_after_join) {
   // ...but t2's join on t1 still goes ahead (which we can tell because our join on t2 finishes).
   void* join_result;
   ASSERT_EQ(0, pthread_join(t2, &join_result));
-  ASSERT_EQ(0, reinterpret_cast<int>(join_result));
+  ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(join_result));
 }
 
 TEST(pthread, pthread_join_self) {
@@ -148,22 +232,48 @@ TEST(pthread, pthread_join_self) {
   ASSERT_EQ(EDEADLK, pthread_join(pthread_self(), &result));
 }
 
-#if __BIONIC__ // For some reason, gtest on bionic can cope with this but gtest on glibc can't.
+struct TestBug37410 {
+  pthread_t main_thread;
+  pthread_mutex_t mutex;
 
-static void TestBug37410() {
-  pthread_t t1;
-  ASSERT_EQ(0, pthread_create(&t1, NULL, JoinFn, reinterpret_cast<void*>(pthread_self())));
-  pthread_exit(NULL);
-}
+  static void main() {
+    TestBug37410 data;
+    data.main_thread = pthread_self();
+    ASSERT_EQ(0, pthread_mutex_init(&data.mutex, NULL));
+    ASSERT_EQ(0, pthread_mutex_lock(&data.mutex));
+
+    pthread_t t;
+    ASSERT_EQ(0, pthread_create(&t, NULL, TestBug37410::thread_fn, reinterpret_cast<void*>(&data)));
+
+    // Wait for the thread to be running...
+    ASSERT_EQ(0, pthread_mutex_lock(&data.mutex));
+    ASSERT_EQ(0, pthread_mutex_unlock(&data.mutex));
+
+    // ...and exit.
+    pthread_exit(NULL);
+  }
+
+ private:
+  static void* thread_fn(void* arg) {
+    TestBug37410* data = reinterpret_cast<TestBug37410*>(arg);
+
+    // Let the main thread know we're running.
+    pthread_mutex_unlock(&data->mutex);
+
+    // And wait for the main thread to exit.
+    pthread_join(data->main_thread, NULL);
+
+    return NULL;
+  }
+};
 
 // Even though this isn't really a death test, we have to say "DeathTest" here so gtest knows to
 // run this test (which exits normally) in its own process.
 TEST(pthread_DeathTest, pthread_bug_37410) {
   // http://code.google.com/p/android/issues/detail?id=37410
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
-  ASSERT_EXIT(TestBug37410(), ::testing::ExitedWithCode(0), "");
+  ASSERT_EXIT(TestBug37410::main(), ::testing::ExitedWithCode(0), "");
 }
-#endif
 
 static void* SignalHandlerFn(void* arg) {
   sigset_t wait_set;
@@ -172,11 +282,27 @@ static void* SignalHandlerFn(void* arg) {
 }
 
 TEST(pthread, pthread_sigmask) {
+  // Check that SIGUSR1 isn't blocked.
+  sigset_t original_set;
+  sigemptyset(&original_set);
+  ASSERT_EQ(0, pthread_sigmask(SIG_BLOCK, NULL, &original_set));
+  ASSERT_FALSE(sigismember(&original_set, SIGUSR1));
+
   // Block SIGUSR1.
   sigset_t set;
   sigemptyset(&set);
   sigaddset(&set, SIGUSR1);
   ASSERT_EQ(0, pthread_sigmask(SIG_BLOCK, &set, NULL));
+
+  // Check that SIGUSR1 is blocked.
+  sigset_t final_set;
+  sigemptyset(&final_set);
+  ASSERT_EQ(0, pthread_sigmask(SIG_BLOCK, NULL, &final_set));
+  ASSERT_TRUE(sigismember(&final_set, SIGUSR1));
+  // ...and that sigprocmask agrees with pthread_sigmask.
+  sigemptyset(&final_set);
+  ASSERT_EQ(0, sigprocmask(SIG_BLOCK, NULL, &final_set));
+  ASSERT_TRUE(sigismember(&final_set, SIGUSR1));
 
   // Spawn a thread that calls sigwait and tells us what it received.
   pthread_t signal_thread;
@@ -190,33 +316,30 @@ TEST(pthread, pthread_sigmask) {
   void* join_result;
   ASSERT_EQ(0, pthread_join(signal_thread, &join_result));
   ASSERT_EQ(SIGUSR1, received_signal);
-  ASSERT_EQ(0, reinterpret_cast<int>(join_result));
+  ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(join_result));
+
+  // Restore the original signal mask.
+  ASSERT_EQ(0, pthread_sigmask(SIG_SETMASK, &original_set, NULL));
 }
 
-#if __BIONIC__
-extern "C" int  __pthread_clone(void* (*fn)(void*), void* child_stack, int flags, void* arg);
-TEST(pthread, __pthread_clone) {
-  uintptr_t fake_child_stack[16];
-  errno = 0;
-  ASSERT_EQ(-1, __pthread_clone(NULL, &fake_child_stack[0], CLONE_THREAD, NULL));
-  ASSERT_EQ(EINVAL, errno);
-}
-#endif
-
-#if __BIONIC__ // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
 TEST(pthread, pthread_setname_np__too_long) {
+#if defined(__BIONIC__) // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
   ASSERT_EQ(ERANGE, pthread_setname_np(pthread_self(), "this name is far too long for linux"));
+#else // __BIONIC__
+  GTEST_LOG_(INFO) << "This test does nothing.\n";
+#endif // __BIONIC__
 }
-#endif
 
-#if __BIONIC__ // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
 TEST(pthread, pthread_setname_np__self) {
+#if defined(__BIONIC__) // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
   ASSERT_EQ(0, pthread_setname_np(pthread_self(), "short 1"));
+#else // __BIONIC__
+  GTEST_LOG_(INFO) << "This test does nothing.\n";
+#endif // __BIONIC__
 }
-#endif
 
-#if __BIONIC__ // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
 TEST(pthread, pthread_setname_np__other) {
+#if defined(__BIONIC__) // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
   // Emulator kernels don't currently support setting the name of other threads.
   char* filename = NULL;
   asprintf(&filename, "/proc/self/task/%d/comm", gettid());
@@ -231,18 +354,22 @@ TEST(pthread, pthread_setname_np__other) {
   } else {
     fprintf(stderr, "skipping test: this kernel doesn't have /proc/self/task/tid/comm files!\n");
   }
+#else // __BIONIC__
+  GTEST_LOG_(INFO) << "This test does nothing.\n";
+#endif // __BIONIC__
 }
-#endif
 
-#if __BIONIC__ // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
 TEST(pthread, pthread_setname_np__no_such_thread) {
+#if defined(__BIONIC__) // Not all build servers have a new enough glibc? TODO: remove when they're on gprecise.
   pthread_t dead_thread;
   MakeDeadThread(dead_thread);
 
   // Call pthread_setname_np after thread has already exited.
   ASSERT_EQ(ESRCH, pthread_setname_np(dead_thread, "short 3"));
+#else // __BIONIC__
+  GTEST_LOG_(INFO) << "This test does nothing.\n";
+#endif // __BIONIC__
 }
-#endif
 
 TEST(pthread, pthread_kill__0) {
   // Signal 0 just tests that the thread exists, so it's safe to call on ourselves.
@@ -263,11 +390,7 @@ static void pthread_kill__in_signal_handler_helper(int signal_number) {
 }
 
 TEST(pthread, pthread_kill__in_signal_handler) {
-  struct sigaction action;
-  sigemptyset(&action.sa_mask);
-  action.sa_flags = 0;
-  action.sa_handler = pthread_kill__in_signal_handler_helper;
-  sigaction(SIGALRM, &action, NULL);
+  ScopedSignalHandler ssh(SIGALRM, pthread_kill__in_signal_handler_helper);
   ASSERT_EQ(0, pthread_kill(pthread_self(), SIGALRM));
 }
 
@@ -276,6 +399,44 @@ TEST(pthread, pthread_detach__no_such_thread) {
   MakeDeadThread(dead_thread);
 
   ASSERT_EQ(ESRCH, pthread_detach(dead_thread));
+}
+
+TEST(pthread, pthread_detach__leak) {
+  size_t initial_bytes = 0;
+  // Run this loop more than once since the first loop causes some memory
+  // to be allocated permenantly. Run an extra loop to help catch any subtle
+  // memory leaks.
+  for (size_t loop = 0; loop < 3; loop++) {
+    // Set the initial bytes on the second loop since the memory in use
+    // should have stabilized.
+    if (loop == 1) {
+      initial_bytes = mallinfo().uordblks;
+    }
+
+    pthread_attr_t attr;
+    ASSERT_EQ(0, pthread_attr_init(&attr));
+    ASSERT_EQ(0, pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
+
+    std::vector<pthread_t> threads;
+    for (size_t i = 0; i < 32; ++i) {
+      pthread_t t;
+      ASSERT_EQ(0, pthread_create(&t, &attr, IdFn, NULL));
+      threads.push_back(t);
+    }
+
+    sleep(1);
+
+    for (size_t i = 0; i < 32; ++i) {
+      ASSERT_EQ(0, pthread_detach(threads[i])) << i;
+    }
+  }
+
+  size_t final_bytes = mallinfo().uordblks;
+  int leaked_bytes = (final_bytes - initial_bytes);
+
+  // User code (like this test) doesn't know how large pthread_internal_t is.
+  // We can be pretty sure it's more than 128 bytes.
+  ASSERT_LT(leaked_bytes, 32 /*threads*/ * 128 /*bytes*/);
 }
 
 TEST(pthread, pthread_getcpuclockid__clock_gettime) {
@@ -348,7 +509,25 @@ TEST(pthread, pthread_join__multijoin) {
   // ...but t2's join on t1 still goes ahead (which we can tell because our join on t2 finishes).
   void* join_result;
   ASSERT_EQ(0, pthread_join(t2, &join_result));
-  ASSERT_EQ(0, reinterpret_cast<int>(join_result));
+  ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(join_result));
+}
+
+TEST(pthread, pthread_join__race) {
+  // http://b/11693195 --- pthread_join could return before the thread had actually exited.
+  // If the joiner unmapped the thread's stack, that could lead to SIGSEGV in the thread.
+  for (size_t i = 0; i < 1024; ++i) {
+    size_t stack_size = 64*1024;
+    void* stack = mmap(NULL, stack_size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+
+    pthread_attr_t a;
+    pthread_attr_init(&a);
+    pthread_attr_setstack(&a, stack, stack_size);
+
+    pthread_t t;
+    ASSERT_EQ(0, pthread_create(&t, &a, IdFn, NULL));
+    ASSERT_EQ(0, pthread_join(t, NULL));
+    ASSERT_EQ(0, munmap(stack, stack_size));
+  }
 }
 
 static void* GetActualGuardSizeFn(void* arg) {
@@ -434,11 +613,297 @@ TEST(pthread, pthread_attr_setstacksize) {
   ASSERT_EQ(0, pthread_attr_setstacksize(&attributes, 32*1024 + 1));
   ASSERT_EQ(0, pthread_attr_getstacksize(&attributes, &stack_size));
   ASSERT_EQ(32*1024U + 1, stack_size);
-#if __BIONIC__
+#if defined(__BIONIC__)
   // Bionic rounds up, which is what POSIX allows.
   ASSERT_EQ(GetActualStackSize(attributes), (32 + 4)*1024U);
-#else
+#else // __BIONIC__
   // glibc rounds down, in violation of POSIX. They document this in their BUGS section.
   ASSERT_EQ(GetActualStackSize(attributes), 32*1024U);
+#endif // __BIONIC__
+}
+
+TEST(pthread, pthread_rwlock_smoke) {
+  pthread_rwlock_t l;
+  ASSERT_EQ(0, pthread_rwlock_init(&l, NULL));
+
+  // Single read lock
+  ASSERT_EQ(0, pthread_rwlock_rdlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+  // Multiple read lock
+  ASSERT_EQ(0, pthread_rwlock_rdlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_rdlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+  // Write lock
+  ASSERT_EQ(0, pthread_rwlock_wrlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+  // Try writer lock
+  ASSERT_EQ(0, pthread_rwlock_trywrlock(&l));
+  ASSERT_EQ(EBUSY, pthread_rwlock_trywrlock(&l));
+  ASSERT_EQ(EBUSY, pthread_rwlock_tryrdlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+  // Try reader lock
+  ASSERT_EQ(0, pthread_rwlock_tryrdlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_tryrdlock(&l));
+  ASSERT_EQ(EBUSY, pthread_rwlock_trywrlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+  // Try writer lock after unlock
+  ASSERT_EQ(0, pthread_rwlock_wrlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+#ifdef __BIONIC__
+  // EDEADLK in "read after write"
+  ASSERT_EQ(0, pthread_rwlock_wrlock(&l));
+  ASSERT_EQ(EDEADLK, pthread_rwlock_rdlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
+
+  // EDEADLK in "write after write"
+  ASSERT_EQ(0, pthread_rwlock_wrlock(&l));
+  ASSERT_EQ(EDEADLK, pthread_rwlock_wrlock(&l));
+  ASSERT_EQ(0, pthread_rwlock_unlock(&l));
 #endif
+
+  ASSERT_EQ(0, pthread_rwlock_destroy(&l));
+}
+
+static int g_once_fn_call_count = 0;
+static void OnceFn() {
+  ++g_once_fn_call_count;
+}
+
+TEST(pthread, pthread_once_smoke) {
+  pthread_once_t once_control = PTHREAD_ONCE_INIT;
+  ASSERT_EQ(0, pthread_once(&once_control, OnceFn));
+  ASSERT_EQ(0, pthread_once(&once_control, OnceFn));
+  ASSERT_EQ(1, g_once_fn_call_count);
+}
+
+static std::string pthread_once_1934122_result = "";
+
+static void Routine2() {
+  pthread_once_1934122_result += "2";
+}
+
+static void Routine1() {
+  pthread_once_t once_control_2 = PTHREAD_ONCE_INIT;
+  pthread_once_1934122_result += "1";
+  pthread_once(&once_control_2, &Routine2);
+}
+
+TEST(pthread, pthread_once_1934122) {
+  // Very old versions of Android couldn't call pthread_once from a
+  // pthread_once init routine. http://b/1934122.
+  pthread_once_t once_control_1 = PTHREAD_ONCE_INIT;
+  ASSERT_EQ(0, pthread_once(&once_control_1, &Routine1));
+  ASSERT_EQ("12", pthread_once_1934122_result);
+}
+
+static int g_atfork_prepare_calls = 0;
+static void AtForkPrepare1() { g_atfork_prepare_calls = (g_atfork_prepare_calls << 4) | 1; }
+static void AtForkPrepare2() { g_atfork_prepare_calls = (g_atfork_prepare_calls << 4) | 2; }
+static int g_atfork_parent_calls = 0;
+static void AtForkParent1() { g_atfork_parent_calls = (g_atfork_parent_calls << 4) | 1; }
+static void AtForkParent2() { g_atfork_parent_calls = (g_atfork_parent_calls << 4) | 2; }
+static int g_atfork_child_calls = 0;
+static void AtForkChild1() { g_atfork_child_calls = (g_atfork_child_calls << 4) | 1; }
+static void AtForkChild2() { g_atfork_child_calls = (g_atfork_child_calls << 4) | 2; }
+
+TEST(pthread, pthread_atfork) {
+  ASSERT_EQ(0, pthread_atfork(AtForkPrepare1, AtForkParent1, AtForkChild1));
+  ASSERT_EQ(0, pthread_atfork(AtForkPrepare2, AtForkParent2, AtForkChild2));
+
+  int pid = fork();
+  ASSERT_NE(-1, pid) << strerror(errno);
+
+  // Child and parent calls are made in the order they were registered.
+  if (pid == 0) {
+    ASSERT_EQ(0x12, g_atfork_child_calls);
+    _exit(0);
+  }
+  ASSERT_EQ(0x12, g_atfork_parent_calls);
+
+  // Prepare calls are made in the reverse order.
+  ASSERT_EQ(0x21, g_atfork_prepare_calls);
+}
+
+TEST(pthread, pthread_attr_getscope) {
+  pthread_attr_t attr;
+  ASSERT_EQ(0, pthread_attr_init(&attr));
+
+  int scope;
+  ASSERT_EQ(0, pthread_attr_getscope(&attr, &scope));
+  ASSERT_EQ(PTHREAD_SCOPE_SYSTEM, scope);
+}
+
+TEST(pthread, pthread_condattr_init) {
+  pthread_condattr_t attr;
+  pthread_condattr_init(&attr);
+
+  clockid_t clock;
+  ASSERT_EQ(0, pthread_condattr_getclock(&attr, &clock));
+  ASSERT_EQ(CLOCK_REALTIME, clock);
+
+  int pshared;
+  ASSERT_EQ(0, pthread_condattr_getpshared(&attr, &pshared));
+  ASSERT_EQ(PTHREAD_PROCESS_PRIVATE, pshared);
+}
+
+TEST(pthread, pthread_condattr_setclock) {
+  pthread_condattr_t attr;
+  pthread_condattr_init(&attr);
+
+  ASSERT_EQ(0, pthread_condattr_setclock(&attr, CLOCK_REALTIME));
+  clockid_t clock;
+  ASSERT_EQ(0, pthread_condattr_getclock(&attr, &clock));
+  ASSERT_EQ(CLOCK_REALTIME, clock);
+
+  ASSERT_EQ(0, pthread_condattr_setclock(&attr, CLOCK_MONOTONIC));
+  ASSERT_EQ(0, pthread_condattr_getclock(&attr, &clock));
+  ASSERT_EQ(CLOCK_MONOTONIC, clock);
+
+  ASSERT_EQ(EINVAL, pthread_condattr_setclock(&attr, CLOCK_PROCESS_CPUTIME_ID));
+}
+
+TEST(pthread, pthread_cond_broadcast__preserves_condattr_flags) {
+#if defined(__BIONIC__) // This tests a bionic implementation detail.
+  pthread_condattr_t attr;
+  pthread_condattr_init(&attr);
+
+  ASSERT_EQ(0, pthread_condattr_setclock(&attr, CLOCK_MONOTONIC));
+  ASSERT_EQ(0, pthread_condattr_setpshared(&attr, PTHREAD_PROCESS_SHARED));
+
+  pthread_cond_t cond_var;
+  ASSERT_EQ(0, pthread_cond_init(&cond_var, &attr));
+
+  ASSERT_EQ(0, pthread_cond_signal(&cond_var));
+  ASSERT_EQ(0, pthread_cond_broadcast(&cond_var));
+
+  attr = static_cast<pthread_condattr_t>(cond_var.value);
+  clockid_t clock;
+  ASSERT_EQ(0, pthread_condattr_getclock(&attr, &clock));
+  ASSERT_EQ(CLOCK_MONOTONIC, clock);
+  int pshared;
+  ASSERT_EQ(0, pthread_condattr_getpshared(&attr, &pshared));
+  ASSERT_EQ(PTHREAD_PROCESS_SHARED, pshared);
+#else // __BIONIC__
+  GTEST_LOG_(INFO) << "This test does nothing.\n";
+#endif // __BIONIC__
+}
+
+TEST(pthread, pthread_mutex_timedlock) {
+  pthread_mutex_t m;
+  ASSERT_EQ(0, pthread_mutex_init(&m, NULL));
+
+  // If the mutex is already locked, pthread_mutex_timedlock should time out.
+  ASSERT_EQ(0, pthread_mutex_lock(&m));
+
+  timespec ts;
+  ASSERT_EQ(0, clock_gettime(CLOCK_REALTIME, &ts));
+  ts.tv_nsec += 1;
+  ASSERT_EQ(ETIMEDOUT, pthread_mutex_timedlock(&m, &ts));
+
+  // If the mutex is unlocked, pthread_mutex_timedlock should succeed.
+  ASSERT_EQ(0, pthread_mutex_unlock(&m));
+
+  ASSERT_EQ(0, clock_gettime(CLOCK_REALTIME, &ts));
+  ts.tv_nsec += 1;
+  ASSERT_EQ(0, pthread_mutex_timedlock(&m, &ts));
+
+  ASSERT_EQ(0, pthread_mutex_unlock(&m));
+  ASSERT_EQ(0, pthread_mutex_destroy(&m));
+}
+
+TEST(pthread, pthread_attr_getstack__main_thread) {
+  // This test is only meaningful for the main thread, so make sure we're running on it!
+  ASSERT_EQ(getpid(), syscall(__NR_gettid));
+
+  // Get the main thread's attributes.
+  pthread_attr_t attributes;
+  ASSERT_EQ(0, pthread_getattr_np(pthread_self(), &attributes));
+
+  // Check that we correctly report that the main thread has no guard page.
+  size_t guard_size;
+  ASSERT_EQ(0, pthread_attr_getguardsize(&attributes, &guard_size));
+  ASSERT_EQ(0U, guard_size); // The main thread has no guard page.
+
+  // Get the stack base and the stack size (both ways).
+  void* stack_base;
+  size_t stack_size;
+  ASSERT_EQ(0, pthread_attr_getstack(&attributes, &stack_base, &stack_size));
+  size_t stack_size2;
+  ASSERT_EQ(0, pthread_attr_getstacksize(&attributes, &stack_size2));
+
+  // The two methods of asking for the stack size should agree.
+  EXPECT_EQ(stack_size, stack_size2);
+
+  // What does /proc/self/maps' [stack] line say?
+  void* maps_stack_hi = NULL;
+  FILE* fp = fopen("/proc/self/maps", "r");
+  ASSERT_TRUE(fp != NULL);
+  char line[BUFSIZ];
+  while (fgets(line, sizeof(line), fp) != NULL) {
+    uintptr_t lo, hi;
+    char name[10];
+    sscanf(line, "%" PRIxPTR "-%" PRIxPTR " %*4s %*x %*x:%*x %*d %10s", &lo, &hi, name);
+    if (strcmp(name, "[stack]") == 0) {
+      maps_stack_hi = reinterpret_cast<void*>(hi);
+      break;
+    }
+  }
+  fclose(fp);
+
+  // The stack size should correspond to RLIMIT_STACK.
+  rlimit rl;
+  ASSERT_EQ(0, getrlimit(RLIMIT_STACK, &rl));
+  uint64_t original_rlim_cur = rl.rlim_cur;
+#if defined(__BIONIC__)
+  if (rl.rlim_cur == RLIM_INFINITY) {
+    rl.rlim_cur = 8 * 1024 * 1024; // Bionic reports unlimited stacks as 8MiB.
+  }
+#endif
+  EXPECT_EQ(rl.rlim_cur, stack_size);
+
+  auto guard = create_scope_guard([&rl, original_rlim_cur]() {
+    rl.rlim_cur = original_rlim_cur;
+    ASSERT_EQ(0, setrlimit(RLIMIT_STACK, &rl));
+  });
+
+  // The high address of the /proc/self/maps [stack] region should equal stack_base + stack_size.
+  // Remember that the stack grows down (and is mapped in on demand), so the low address of the
+  // region isn't very interesting.
+  EXPECT_EQ(maps_stack_hi, reinterpret_cast<uint8_t*>(stack_base) + stack_size);
+
+  //
+  // What if RLIMIT_STACK is smaller than the stack's current extent?
+  //
+  rl.rlim_cur = rl.rlim_max = 1024; // 1KiB. We know the stack must be at least a page already.
+  rl.rlim_max = RLIM_INFINITY;
+  ASSERT_EQ(0, setrlimit(RLIMIT_STACK, &rl));
+
+  ASSERT_EQ(0, pthread_getattr_np(pthread_self(), &attributes));
+  ASSERT_EQ(0, pthread_attr_getstack(&attributes, &stack_base, &stack_size));
+  ASSERT_EQ(0, pthread_attr_getstacksize(&attributes, &stack_size2));
+
+  EXPECT_EQ(stack_size, stack_size2);
+  ASSERT_EQ(1024U, stack_size);
+
+  //
+  // What if RLIMIT_STACK isn't a whole number of pages?
+  //
+  rl.rlim_cur = rl.rlim_max = 6666; // Not a whole number of pages.
+  rl.rlim_max = RLIM_INFINITY;
+  ASSERT_EQ(0, setrlimit(RLIMIT_STACK, &rl));
+
+  ASSERT_EQ(0, pthread_getattr_np(pthread_self(), &attributes));
+  ASSERT_EQ(0, pthread_attr_getstack(&attributes, &stack_base, &stack_size));
+  ASSERT_EQ(0, pthread_attr_getstacksize(&attributes, &stack_size2));
+
+  EXPECT_EQ(stack_size, stack_size2);
+  ASSERT_EQ(6666U, stack_size);
 }

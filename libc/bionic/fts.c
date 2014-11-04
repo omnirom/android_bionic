@@ -1,4 +1,4 @@
-/*	$OpenBSD: fts.c,v 1.43 2009/08/27 16:19:27 millert Exp $	*/
+/*	$OpenBSD: fts.c,v 1.46 2014/05/25 17:47:04 tedu Exp $	*/
 
 /*-
  * Copyright (c) 1990, 1993, 1994
@@ -36,11 +36,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fts.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#define MAX(a,b) ((a)>(b)?(a):(b))
 
 static FTSENT	*fts_alloc(FTS *, char *, size_t);
 static FTSENT	*fts_build(FTS *, int);
@@ -52,6 +51,9 @@ static int	 fts_palloc(FTS *, size_t);
 static FTSENT	*fts_sort(FTS *, FTSENT *, int);
 static u_short	 fts_stat(FTS *, FTSENT *, int);
 static int	 fts_safe_changedir(FTS *, FTSENT *, int, char *);
+
+#define ALIGNBYTES (sizeof(uintptr_t) - 1)
+#define ALIGN(p) (((uintptr_t)(p) + ALIGNBYTES) &~ ALIGNBYTES)
 
 #define	ISDOT(a)	(a[0] == '.' && (!a[1] || (a[1] == '.' && !a[2])))
 
@@ -96,7 +98,7 @@ fts_open(char * const *argv, int options,
 	 * Start out with 1K of path space, and enough, in any case,
 	 * to hold the user's paths.
 	 */
-	if (fts_palloc(sp, MAX(fts_maxarglen(argv), MAXPATHLEN)))
+	if (fts_palloc(sp, MAX(fts_maxarglen(argv), PATH_MAX)))
 		goto mem1;
 
 	/* Allocate/initialize root's parent. */
@@ -446,7 +448,7 @@ name:		t = sp->fts_path + NAPPEND(p->fts_parent);
  */
 /* ARGSUSED */
 int
-fts_set(FTS *sp, FTSENT *p, int instr)
+fts_set(FTS *sp __unused, FTSENT *p, int instr)
 {
 	if (instr && instr != FTS_AGAIN && instr != FTS_FOLLOW &&
 	    instr != FTS_NOINSTR && instr != FTS_SKIP) {
@@ -636,7 +638,7 @@ fts_build(FTS *sp, int type)
 	maxlen = sp->fts_pathlen - len;
 
 	/*
-	 * fts_level is a short so we must prevent it from wrapping
+	 * fts_level is signed so we must prevent it from wrapping
 	 * around to FTS_ROOTLEVEL and FTS_ROOTPARENTLEVEL.
 	 */
 	level = cur->fts_level;
@@ -907,10 +909,9 @@ fts_alloc(FTS *sp, char *name, size_t namelen)
 	len = sizeof(FTSENT) + namelen;
 	if (!ISSET(FTS_NOSTAT))
 		len += sizeof(struct stat) + ALIGNBYTES;
-	if ((p = malloc(len)) == NULL)
+	if ((p = calloc(1, len)) == NULL)
 		return (NULL);
 
-	memset(p, 0, len);
 	p->fts_path = sp->fts_path;
 	p->fts_namelen = namelen;
 	p->fts_instr = FTS_NOINSTR;
@@ -935,7 +936,7 @@ fts_lfree(FTSENT *head)
 
 /*
  * Allow essentially unlimited paths; find, rm, ls should all work on any tree.
- * Most systems will allow creation of paths much longer than MAXPATHLEN, even
+ * Most systems will allow creation of paths much longer than PATH_MAX, even
  * though the kernel won't resolve them.  Add the size (not just what's needed)
  * plus 256 bytes so don't realloc the path 2 bytes at a time.
  */

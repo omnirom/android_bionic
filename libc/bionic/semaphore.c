@@ -28,11 +28,11 @@
 #include <semaphore.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <sys/atomics.h>
 #include <time.h>
-#include <bionic_atomic_inline.h>
-#include <bionic_futex.h>
 #include <limits.h>
+
+#include "private/bionic_atomic_inline.h"
+#include "private/bionic_futex.h"
 
 /* In this implementation, a semaphore contains a
  * 31-bit signed value and a 1-bit 'shared' flag
@@ -126,11 +126,8 @@ int sem_destroy(sem_t *sem)
 }
 
 
-sem_t *sem_open(const char *name, int oflag, ...)
+sem_t *sem_open(const char *name __unused, int oflag __unused, ...)
 {
-    name=name;
-    oflag=oflag;
-
     errno = ENOSYS;
     return SEM_FAILED;
 }
@@ -147,7 +144,7 @@ int sem_close(sem_t *sem)
 }
 
 
-int sem_unlink(const char * name)
+int sem_unlink(const char* name __unused)
 {
     errno = ENOSYS;
     return -1;
@@ -266,7 +263,6 @@ int sem_wait(sem_t *sem)
 
 int sem_timedwait(sem_t *sem, const struct timespec *abs_timeout)
 {
-    int  ret;
     unsigned int shared;
 
     if (sem == NULL) {

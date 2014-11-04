@@ -89,9 +89,11 @@ static int do_getpw_r(int by_name, const char* name, uid_t uid,
   // Copy the strings.
   snprintf(buf, byte_count, "%s%c%s%c%s", src->pw_name, 0, src->pw_dir, 0, src->pw_shell);
 
-  // pw_passwd is non-POSIX and unused (always NULL) in bionic.
-  // pw_gecos is non-POSIX and missing in bionic.
+  // pw_passwd and pw_gecos are non-POSIX and unused (always NULL) in bionic.
   dst->pw_passwd = NULL;
+#ifdef __LP64__
+  dst->pw_gecos = NULL;
+#endif
 
   // Copy the integral fields.
   dst->pw_gid = src->pw_gid;
@@ -442,21 +444,6 @@ void endpwent() {
   UNIMPLEMENTED;
 }
 
-mntent* getmntent(FILE* /*f*/) {
-  UNIMPLEMENTED;
-  return NULL;
-}
-
-char* ttyname(int /*fd*/) { // NOLINT: implementing bad function.
-  UNIMPLEMENTED;
-  return NULL;
-}
-
-int ttyname_r(int /*fd*/, char* /*buf*/, size_t /*buflen*/) {
-  UNIMPLEMENTED;
-  return -ERANGE;
-}
-
 char* getusershell() {
   UNIMPLEMENTED;
   return NULL;
@@ -468,4 +455,10 @@ void setusershell() {
 
 void endusershell() {
   UNIMPLEMENTED;
+}
+
+// Portable code should use sysconf(_SC_PAGE_SIZE) directly instead.
+int getpagesize() {
+  // We dont use sysconf(3) here because that drags in stdio, which makes static binaries fat.
+  return PAGE_SIZE;
 }

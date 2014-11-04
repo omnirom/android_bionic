@@ -33,31 +33,8 @@
 
 __BEGIN_DECLS
 
-#ifndef _BIONIC_STRFTIME_TZ_DECLARED
-#define _BIONIC_STRFTIME_TZ_DECLARED
-
-struct strftime_locale {
-    const char *  mon[12];
-    const char *  month[12];
-    const char *  standalone_month[12];
-    const char *  wday[7];
-    const char *  weekday[7];
-    const char *  X_fmt;
-    const char *  x_fmt;
-    const char *  c_fmt;
-    const char *  am;
-    const char *  pm;
-    const char *  date_fmt;
-};
-
-/*
- * Note: you should consider these extensions deprecated and use managed code or icu4c instead.
- */
-extern size_t strftime_tz(char* s, size_t max, const char* format, const struct tm* tm, const struct strftime_locale* lc);
-extern time_t mktime_tz(struct tm* const tmp, char const* tz);
-extern void localtime_tz(const time_t* const timep, struct tm* tmp, const char* tz);
-
-#endif /* _BIONIC_STRFTIME_TZ_DECLARED */
+// We can't remove this (and this file) until we fix MtpUtils.cpp.
+time_t mktime_tz(struct tm* const, char const*);
 
 __END_DECLS
 

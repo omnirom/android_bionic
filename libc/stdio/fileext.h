@@ -29,8 +29,10 @@
  * $Citrus$
  */
 
+#ifndef _FILEEXT_H_
+#define _FILEEXT_H_
+
 #include <pthread.h>
-#include "wcio.h"
 
 /*
  * file extension
@@ -52,20 +54,13 @@ do { \
 	_UB(fp)._base = NULL; \
 	_UB(fp)._size = 0; \
 	WCIO_INIT(fp); \
-	_FLOCK_INIT(fp); \
+        _FLOCK(fp).value = __PTHREAD_RECURSIVE_MUTEX_INIT_VALUE; \
 } while (0)
-
-/* Helper macros to avoid a function call when you know that fp is not NULL.
- * Notice that we keep _FLOCK_INIT() fast by slightly breaking our pthread
- * encapsulation.
- */
-#define _FLOCK_INIT(fp)    _FLOCK(fp).value = __PTHREAD_RECURSIVE_MUTEX_INIT_VALUE
-#define _FLOCK_LOCK(fp)    pthread_mutex_lock(&_FLOCK(fp))
-#define _FLOCK_TRYLOCK(fp) pthread_mutex_trylock(&_FLOCK(fp))
-#define _FLOCK_UNLOCK(fp)  pthread_mutex_unlock(&_FLOCK(fp))
 
 #define _FILEEXT_SETUP(f, fext) \
 do { \
 	(f)->_ext._base = (unsigned char *)(fext); \
 	_FILEEXT_INIT(f); \
 } while (0)
+
+#endif /* _FILEEXT_H_ */

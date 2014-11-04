@@ -19,7 +19,7 @@
 
 /*
 ** Defaults for preprocessor symbols.
-** You can override these in your C compiler options, e.g. `-DHAVE_ADJTIME=0'.
+** You can override these in your C compiler options, e.g. '-DHAVE_ADJTIME=0'.
 */
 
 #ifndef HAVE_ADJTIME
@@ -33,6 +33,10 @@
 #ifndef HAVE_INCOMPATIBLE_CTIME_R
 #define HAVE_INCOMPATIBLE_CTIME_R	0
 #endif /* !defined INCOMPATIBLE_CTIME_R */
+
+#ifndef HAVE_LINK
+#define HAVE_LINK		1
+#endif /* !defined HAVE_LINK */
 
 #ifndef HAVE_SETTIMEOFDAY
 #define HAVE_SETTIMEOFDAY	3
@@ -58,9 +62,11 @@
 #define HAVE_UTMPX_H		0
 #endif /* !defined HAVE_UTMPX_H */
 
+#if !defined(__ANDROID__)
 #ifndef LOCALE_HOME
 #define LOCALE_HOME		"/usr/lib/locale"
 #endif /* !defined LOCALE_HOME */
+#endif // __ANDROID__
 
 #if HAVE_INCOMPATIBLE_CTIME_R
 #define asctime_r _incompatible_asctime_r
@@ -116,8 +122,9 @@
 */
 #ifndef HAVE_STDINT_H
 #define HAVE_STDINT_H \
-	(199901 <= __STDC_VERSION__ || \
-	2 < (__GLIBC__ + (0 < __GLIBC_MINOR__)))
+   (199901 <= __STDC_VERSION__ \
+    || 2 < __GLIBC__ + (1 <= __GLIBC_MINOR__)	\
+    || __CYGWIN__)
 #endif /* !defined HAVE_STDINT_H */
 
 #if HAVE_STDINT_H
@@ -166,10 +173,21 @@ typedef int int_fast32_t;
 #ifndef INTMAX_MAX
 # if defined LLONG_MAX || defined __LONG_LONG_MAX__
 typedef long long intmax_t;
+#  define strtoimax strtoll
 #  define PRIdMAX "lld"
+#  ifdef LLONG_MAX
+#   define INTMAX_MAX LLONG_MAX
+#   define INTMAX_MIN LLONG_MIN
+#  else
+#   define INTMAX_MAX __LONG_LONG_MAX__
+#   define INTMAX_MIN __LONG_LONG_MIN__
+#  endif
 # else
 typedef long intmax_t;
+#  define strtoimax strtol
 #  define PRIdMAX "ld"
+#  define INTMAX_MAX LONG_MAX
+#  define INTMAX_MIN LONG_MIN
 # endif
 #endif
 
@@ -190,12 +208,18 @@ typedef unsigned long uintmax_t;
 #define INT32_MIN (-1 - INT32_MAX)
 #endif /* !defined INT32_MIN */
 
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t) -1)
+#endif
+
 #if 2 < __GNUC__ + (96 <= __GNUC_MINOR__)
 # define ATTRIBUTE_CONST __attribute__ ((const))
 # define ATTRIBUTE_PURE __attribute__ ((__pure__))
+# define ATTRIBUTE_FORMAT(spec) __attribute__ ((__format__ spec))
 #else
 # define ATTRIBUTE_CONST /* empty */
 # define ATTRIBUTE_PURE /* empty */
+# define ATTRIBUTE_FORMAT(spec) /* empty */
 #endif
 
 #if !defined _Noreturn && __STDC_VERSION__ < 201112
@@ -314,15 +338,6 @@ static time_t const time_t_max =
    ? - (~ 0 < 0) - ((time_t) -1 << (CHAR_BIT * sizeof (time_t) - 1))
    : -1);
 
-/*
-** Since the definition of TYPE_INTEGRAL contains floating point numbers,
-** it cannot be used in preprocessor directives.
-*/
-
-#ifndef TYPE_INTEGRAL
-#define TYPE_INTEGRAL(type) (((type) 0.5) != 0.5)
-#endif /* !defined TYPE_INTEGRAL */
-
 #ifndef INT_STRLEN_MAXIMUM
 /*
 ** 302 / 1000 is log10(2.0) rounded up.
@@ -339,29 +354,15 @@ static time_t const time_t_max =
 ** INITIALIZE(x)
 */
 
-#ifndef GNUC_or_lint
 #ifdef lint
-#define GNUC_or_lint
-#endif /* defined lint */
-#ifndef lint
-#ifdef __GNUC__
-#define GNUC_or_lint
-#endif /* defined __GNUC__ */
-#endif /* !defined lint */
-#endif /* !defined GNUC_or_lint */
-
-#ifndef INITIALIZE
-#ifdef GNUC_or_lint
-#define INITIALIZE(x)	((x) = 0)
-#endif /* defined GNUC_or_lint */
-#ifndef GNUC_or_lint
-#define INITIALIZE(x)
-#endif /* !defined GNUC_or_lint */
-#endif /* !defined INITIALIZE */
+# define INITIALIZE(x)	((x) = 0)
+#else
+# define INITIALIZE(x)
+#endif
 
 /*
 ** For the benefit of GNU folk...
-** `_(MSGID)' uses the current locale's message library string for MSGID.
+** '_(MSGID)' uses the current locale's message library string for MSGID.
 ** The default is to use gettext if available, and use MSGID otherwise.
 */
 
@@ -373,9 +374,9 @@ static time_t const time_t_max =
 #endif /* !HAVE_GETTEXT */
 #endif /* !defined _ */
 
-#ifndef TZ_DOMAIN
-#define TZ_DOMAIN "tz"
-#endif /* !defined TZ_DOMAIN */
+#if !defined TZ_DOMAIN && defined TZ_DOMAINDIR
+# define TZ_DOMAIN "tz"
+#endif
 
 #if HAVE_INCOMPATIBLE_CTIME_R
 #undef asctime_r

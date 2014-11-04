@@ -41,41 +41,47 @@ __BEGIN_DECLS
 #define EXIT_FAILURE 1
 #define EXIT_SUCCESS 0
 
-extern __noreturn void exit(int);
 extern __noreturn void abort(void);
+extern __noreturn void exit(int);
+extern __noreturn void _Exit(int);
 extern int atexit(void (*)(void));
 
-extern char *getenv(const char *);
-extern int putenv(const char *);
-extern int setenv(const char *, const char *, int);
-extern int unsetenv(const char *);
+#if __ISO_C_VISIBLE >= 2011 || __cplusplus >= 201103L
+int at_quick_exit(void (*)(void));
+void quick_exit(int) __noreturn;
+#endif
+
+extern char* getenv(const char*);
+extern int putenv(char*);
+extern int setenv(const char*, const char*, int);
+extern int unsetenv(const char*);
 extern int clearenv(void);
 
-extern char *mkdtemp(char *);
-extern char *mktemp(char *);
-extern int mkstemp(char *);
+extern char* mkdtemp(char*);
+extern char* mktemp(char*) __warnattr("mktemp possibly used unsafely; consider using mkstemp");
+extern int mkstemp(char*);
+extern int mkstemp64(char*);
 
 extern long strtol(const char *, char **, int);
 extern long long strtoll(const char *, char **, int);
 extern unsigned long strtoul(const char *, char **, int);
 extern unsigned long long strtoull(const char *, char **, int);
-extern double strtod(const char *nptr, char **endptr);
 
 extern int posix_memalign(void **memptr, size_t alignment, size_t size);
 
-static __inline__ float strtof(const char *nptr, char **endptr)
-{
-    return (float)strtod(nptr, endptr);
-}
+extern double atof(const char*);
 
-extern int atoi(const char *) __purefunc;
-extern long atol(const char *) __purefunc;
-extern long long atoll(const char *) __purefunc;
+extern double strtod(const char*, char**) __LIBC_ABI_PUBLIC__;
+extern float strtof(const char*, char**) __LIBC_ABI_PUBLIC__;
+extern long double strtold(const char*, char**) __LIBC_ABI_PUBLIC__;
 
-static __inline__ double atof(const char *nptr)
-{
-    return (strtod(nptr, NULL));
-}
+extern long double strtold_l(const char *, char **, locale_t) __LIBC_ABI_PUBLIC__;
+extern long long strtoll_l(const char *, char **, int, locale_t) __LIBC_ABI_PUBLIC__;
+extern unsigned long long strtoull_l(const char *, char **, int, locale_t) __LIBC_ABI_PUBLIC__;
+
+extern int atoi(const char*) __purefunc;
+extern long atol(const char*) __purefunc;
+extern long long atoll(const char*) __purefunc;
 
 extern int abs(int) __pure2;
 extern long labs(long) __pure2;
@@ -98,61 +104,54 @@ extern unsigned short *seed48(unsigned short*);
 extern double erand48(unsigned short xsubi[3]);
 extern double drand48(void);
 extern void srand48(long);
-extern unsigned int arc4random(void);
-extern void arc4random_stir(void);
-extern void arc4random_addrandom(unsigned char *, int);
+
+unsigned int arc4random(void);
+unsigned int arc4random_uniform(unsigned int);
+void arc4random_buf(void*, size_t);
 
 #define RAND_MAX 0x7fffffff
-static __inline__ int rand(void) {
-    return (int)lrand48();
-}
-static __inline__ void srand(unsigned int __s) {
-    srand48(__s);
-}
-static __inline__ long random(void)
-{
-    return lrand48();
-}
-static __inline__ void srandom(unsigned int __s)
-{
-    srand48(__s);
-}
 
-/* Basic PTY functions.  These only work if devpts is mounted! */
+int rand(void);
+int rand_r(unsigned int*);
+void srand(unsigned int);
 
-extern int    unlockpt(int);
-extern char*  ptsname(int);
-extern int    ptsname_r(int, char*, size_t);
-extern int    getpt(void);
+char* initstate(unsigned int, char*, size_t);
+long random(void);
+char* setstate(char*);
+void srandom(unsigned int);
 
-static __inline__ int grantpt(int __fd __attribute((unused)))
-{
-  (void)__fd;
-  return 0;     /* devpts does this all for us! */
-}
+int getpt(void);
+int grantpt(int);
+int posix_openpt(int);
+char* ptsname(int) __warnattr("ptsname is not thread-safe; use ptsname_r instead");
+int ptsname_r(int, char*, size_t);
+int unlockpt(int);
 
 typedef struct {
     int  quot;
     int  rem;
 } div_t;
 
-extern div_t   div(int, int);
+extern div_t   div(int, int) __pure2;
 
 typedef struct {
     long int  quot;
     long int  rem;
 } ldiv_t;
 
-extern ldiv_t   ldiv(long, long);
+extern ldiv_t   ldiv(long, long) __pure2;
 
 typedef struct {
     long long int  quot;
     long long int  rem;
 } lldiv_t;
 
-extern lldiv_t   lldiv(long long, long long);
+extern lldiv_t   lldiv(long long, long long) __pure2;
 
-#if 1 /* MISSING FROM BIONIC - ENABLED FOR STLPort and libstdc++-v3 */
+/* BSD compatibility. */
+extern const char* getprogname(void);
+extern void setprogname(const char*);
+
 /* make STLPort happy */
 extern int      mblen(const char *, size_t);
 extern size_t   mbstowcs(wchar_t *, const char *, size_t);
@@ -161,13 +160,9 @@ extern int      mbtowc(wchar_t *, const char *, size_t);
 /* Likewise, make libstdc++-v3 happy.  */
 extern int	wctomb(char *, wchar_t);
 extern size_t	wcstombs(char *, const wchar_t *, size_t);
-#endif /* MISSING */
 
-#define MB_CUR_MAX 1
-
-#if 0 /* MISSING FROM BIONIC */
-extern int on_exit(void (*)(int, void *), void *);
-#endif /* MISSING */
+extern size_t __ctype_get_mb_cur_max(void);
+#define MB_CUR_MAX __ctype_get_mb_cur_max()
 
 __END_DECLS
 

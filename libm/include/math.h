@@ -18,8 +18,10 @@
 #define	_MATH_H_
 
 #include <sys/cdefs.h>
-#include <sys/_types.h>
 #include <limits.h>
+
+__BEGIN_DECLS
+#pragma GCC visibility push(default)
 
 /*
  * ANSI/POSIX
@@ -34,11 +36,11 @@ extern const union __nan_un {
 	float		__uf;
 } __nan;
 
-#if __GNUC_PREREQ__(3, 3) || (defined(__INTEL_COMPILER) && __INTEL_COMPILER >= 800)
+#if __GNUC_PREREQ(3, 3) || (defined(__INTEL_COMPILER) && __INTEL_COMPILER >= 800)
 #define	__MATH_BUILTIN_CONSTANTS
 #endif
 
-#if __GNUC_PREREQ__(3, 0) && !defined(__INTEL_COMPILER)
+#if __GNUC_PREREQ(3, 0) && !defined(__INTEL_COMPILER)
 #define	__MATH_BUILTIN_RELOPS
 #endif
 
@@ -124,8 +126,10 @@ extern const union __nan_un {
     : (sizeof (x) == sizeof (double)) ? __signbit(x)	\
     : __signbitl(x))
 
-typedef	__double_t	double_t;
-typedef	__float_t	float_t;
+typedef double __double_t;
+typedef __double_t double_t;
+typedef float __float_t;
+typedef __float_t float_t;
 #endif /* __ISO_C_VISIBLE >= 1999 */
 
 /*
@@ -164,7 +168,7 @@ extern int signgam;
  * effect of raising floating-point exceptions, so they are not declared
  * as __pure2.  In C99, FENV_ACCESS affects the purity of these functions.
  */
-__BEGIN_DECLS
+
 /*
  * ANSI/POSIX
  */
@@ -281,6 +285,7 @@ double	trunc(double);
 double	drem(double, double);
 int	finite(double) __pure2;
 int	isnanf(float) __pure2;
+long double significandl(long double);
 
 /*
  * Reentrant version of gamma & lgamma; passes signgam back by reference
@@ -395,16 +400,23 @@ float	significandf(float);
  * long double versions of ISO/POSIX math functions
  */
 #if __ISO_C_VISIBLE >= 1999
+long double	acoshl(long double);
 long double	acosl(long double);
+long double	asinhl(long double);
 long double	asinl(long double);
 long double	atan2l(long double, long double);
+long double	atanhl(long double);
 long double	atanl(long double);
 long double	cbrtl(long double);
 long double	ceill(long double);
 long double	copysignl(long double, long double) __pure2;
+long double	coshl(long double);
 long double	cosl(long double);
+long double	erfcl(long double);
+long double	erfl(long double);
 long double	exp2l(long double);
 long double	expl(long double);
+long double	expm1l(long double);
 long double	fabsl(long double) __pure2;
 long double	fdiml(long double, long double);
 long double	floorl(long double);
@@ -416,9 +428,14 @@ long double	frexpl(long double value, int *); /* fundamentally !__pure2 */
 long double	hypotl(long double, long double);
 int		ilogbl(long double) __pure2;
 long double	ldexpl(long double, int);
+long double	lgammal(long double);
 long long	llrintl(long double);
 long long	llroundl(long double);
+long double	log10l(long double);
+long double	log1pl(long double);
+long double	log2l(long double);
 long double	logbl(long double);
+long double	logl(long double);
 long		lrintl(long double);
 long		lroundl(long double);
 long double	modfl(long double, long double *); /* fundamentally !__pure2 */
@@ -428,53 +445,30 @@ long double	nextafterl(long double, long double);
 double		nexttoward(double, long double);
 float		nexttowardf(float, long double);
 long double	nexttowardl(long double, long double);
+long double	powl(long double, long double);
 long double	remainderl(long double, long double);
 long double	remquol(long double, long double, int *);
 long double	rintl(long double);
 long double	roundl(long double);
 long double	scalblnl(long double, long);
 long double	scalbnl(long double, int);
+long double	sinhl(long double);
 long double	sinl(long double);
 long double	sqrtl(long double);
+long double	tanhl(long double);
 long double	tanl(long double);
+long double	tgammal(long double);
 long double	truncl(long double);
 
 #endif /* __ISO_C_VISIBLE >= 1999 */
+
+#if defined(_GNU_SOURCE)
+void sincos(double, double*, double*);
+void sincosf(float, float*, float*);
+void sincosl(long double, long double*, long double*);
+#endif /* _GNU_SOURCE */
+
+#pragma GCC visibility pop
 __END_DECLS
 
 #endif /* !_MATH_H_ */
-
-/* separate header for cmath */
-#ifndef _MATH_EXTRA_H_
-#if __ISO_C_VISIBLE >= 1999
-#if _DECLARE_C99_LDBL_MATH
-
-#define _MATH_EXTRA_H_
-
-/*
- * extra long double versions of math functions for C99 and cmath
- */
-__BEGIN_DECLS
-
-long double	acoshl(long double);
-long double	asinhl(long double);
-long double	atanhl(long double);
-long double	coshl(long double);
-long double	erfcl(long double);
-long double	erfl(long double);
-long double	expm1l(long double);
-long double	lgammal(long double);
-long double	log10l(long double);
-long double	log1pl(long double);
-long double	log2l(long double);
-long double	logl(long double);
-long double	powl(long double, long double);
-long double	sinhl(long double);
-long double	tanhl(long double);
-long double	tgammal(long double);
-
-__END_DECLS
-
-#endif /* !_DECLARE_C99_LDBL_MATH */
-#endif /* __ISO_C_VISIBLE >= 1999 */
-#endif /* !_MATH_EXTRA_H_ */

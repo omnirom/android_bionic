@@ -26,8 +26,6 @@
  * SUCH DAMAGE.
  */
 
-#include <asm/page.h>
-#include <bionic_tls.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -40,6 +38,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "private/bionic_tls.h"
 #include "private/ScopedReaddir.h"
 
 /* seems to be the default on Linux, per the GLibc sources and my own digging */
@@ -230,8 +229,11 @@ int sysconf(int name) {
 #endif
     case _SC_ATEXIT_MAX:        return SYSTEM_ATEXIT_MAX;
     case _SC_IOV_MAX:           return SYSTEM_IOV_MAX;
-    case _SC_PAGESIZE:          return PAGE_SIZE;
-    case _SC_PAGE_SIZE:         return PAGE_SIZE;
+
+    case _SC_PAGESIZE:
+    case _SC_PAGE_SIZE:
+        return PAGE_SIZE;
+
 #ifdef _XOPEN_UNIX
     case _SC_XOPEN_UNIX:        return _XOPEN_UNIX;
 #endif
@@ -307,7 +309,7 @@ int sysconf(int name) {
       return _POSIX_THREAD_DESTRUCTOR_ITERATIONS;
 
     case _SC_THREAD_KEYS_MAX:
-      return (BIONIC_TLS_SLOTS - TLS_SLOT_FIRST_USER_SLOT - GLOBAL_INIT_THREAD_LOCAL_BUFFER_COUNT);
+      return (BIONIC_TLS_SLOTS - TLS_SLOT_FIRST_USER_SLOT - BIONIC_TLS_RESERVED_SLOTS);
 
     case _SC_THREAD_STACK_MIN:    return PTHREAD_STACK_MIN;
     case _SC_THREAD_THREADS_MAX:  return SYSTEM_THREAD_THREADS_MAX;
@@ -315,12 +317,10 @@ int sysconf(int name) {
 #ifdef _POSIX_THREADS
     case _SC_THREADS:             return _POSIX_THREADS;
 #endif
-#ifdef _POSIX_THREAD_ATTR_STACKADDR
-    case _SC_THREAD_ATTR_STACKADDR:   return _POSIX_THREAD_ATTR_STACKADDR;
-#endif
-#ifdef _POSIX_THREAD_ATTR_STACKSIZE
-    case _SC_THREAD_ATTR_STACKSIZE:   return _POSIX_THREAD_ATTR_STACKSIZE;
-#endif
+
+    case _SC_THREAD_ATTR_STACKADDR:   return -1; // Removed in POSIX 2008
+    case _SC_THREAD_ATTR_STACKSIZE:   return -1; // Removed in POSIX 2008
+
 #ifdef _POSIX_THREAD_PRIORITY_SCHEDULING
     case _SC_THREAD_PRIORITY_SCHEDULING:  return _POSIX_THREAD_PRIORITY_SCHEDULING;
 #endif

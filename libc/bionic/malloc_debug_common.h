@@ -33,9 +33,12 @@
 #ifndef MALLOC_DEBUG_COMMON_H
 #define MALLOC_DEBUG_COMMON_H
 
+#include <pthread.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-#include "libc_logging.h"
+#include "private/bionic_config.h"
+#include "private/libc_logging.h"
 
 #define HASHTABLE_SIZE      1543
 #define BACKTRACE_SIZE      32
@@ -43,9 +46,7 @@
 #define SIZE_FLAG_ZYGOTE_CHILD  (1<<31)
 #define SIZE_FLAG_MASK          (SIZE_FLAG_ZYGOTE_CHILD)
 
-#define MAX_SIZE_T           (~(size_t)0)
-
-// This must match the alignment used by dlmalloc.
+// This must match the alignment used by the malloc implementation.
 #ifndef MALLOC_ALIGNMENT
 #define MALLOC_ALIGNMENT ((size_t)(2 * sizeof(void *)))
 #endif
@@ -66,40 +67,46 @@ struct HashEntry {
 };
 
 struct HashTable {
+    pthread_mutex_t lock;
     size_t count;
     HashEntry* slots[HASHTABLE_SIZE];
 };
 
 /* Entry in malloc dispatch table. */
-typedef void* (*MallocDebugMalloc)(size_t);
-typedef void (*MallocDebugFree)(void*);
 typedef void* (*MallocDebugCalloc)(size_t, size_t);
-typedef void* (*MallocDebugRealloc)(void*, size_t);
-typedef void* (*MallocDebugMemalign)(size_t, size_t);
+typedef void (*MallocDebugFree)(void*);
+typedef struct mallinfo (*MallocDebugMallinfo)();
+typedef void* (*MallocDebugMalloc)(size_t);
 typedef size_t (*MallocDebugMallocUsableSize)(const void*);
+typedef void* (*MallocDebugMemalign)(size_t, size_t);
+typedef int (*MallocDebugPosixMemalign)(void**, size_t, size_t);
+#if defined(HAVE_DEPRECATED_MALLOC_FUNCS)
+typedef void* (*MallocDebugPvalloc)(size_t);
+#endif
+typedef void* (*MallocDebugRealloc)(void*, size_t);
+#if defined(HAVE_DEPRECATED_MALLOC_FUNCS)
+typedef void* (*MallocDebugValloc)(size_t);
+#endif
+
 struct MallocDebug {
-  MallocDebugMalloc malloc;
-  MallocDebugFree free;
   MallocDebugCalloc calloc;
-  MallocDebugRealloc realloc;
-  MallocDebugMemalign memalign;
+  MallocDebugFree free;
+  MallocDebugMallinfo mallinfo;
+  MallocDebugMalloc malloc;
   MallocDebugMallocUsableSize malloc_usable_size;
+  MallocDebugMemalign memalign;
+  MallocDebugPosixMemalign posix_memalign;
+#if defined(HAVE_DEPRECATED_MALLOC_FUNCS)
+  MallocDebugPvalloc pvalloc;
+#endif
+  MallocDebugRealloc realloc;
+#if defined(HAVE_DEPRECATED_MALLOC_FUNCS)
+  MallocDebugValloc valloc;
+#endif
 };
 
-/* Malloc debugging initialization and finalization routines.
- *
- * These routines must be implemented in .so modules that implement malloc
- * debugging. The are is called once per process from malloc_init_impl and
- * malloc_fini_impl respectively.
- *
- * They are implemented in bionic/libc/bionic/malloc_debug_common.c when malloc
- * debugging gets initialized for the process.
- *
- * MallocDebugInit returns:
- *    0 on success, -1 on failure.
- */
-typedef int (*MallocDebugInit)();
-typedef void (*MallocDebugFini)();
+typedef bool (*MallocDebugInit)(HashTable*, const MallocDebug*);
+typedef void (*MallocDebugFini)(int);
 
 // =============================================================================
 // log functions

@@ -48,15 +48,16 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <elf.h>
-#include "atexit.h"
-#include "KernelArgumentBlock.h"
 #include "libc_init_common.h"
-#include <bionic_tls.h>
+
+#include "private/bionic_tls.h"
+#include "private/KernelArgumentBlock.h"
 
 extern "C" {
-  extern void pthread_debug_init(void);
   extern void malloc_debug_init(void);
   extern void malloc_debug_fini(void);
+  extern void netdClientInit(void);
+  extern int __cxa_atexit(void (*)(void *), void *, void *);
 };
 
 // We flag the __libc_preinit function as a constructor to ensure
@@ -65,7 +66,7 @@ extern "C" {
 // as soon as the shared library is loaded.
 __attribute__((constructor)) static void __libc_preinit() {
   // Read the kernel argument block pointer from TLS.
-  void* tls = const_cast<void*>(__get_tls());
+  void** tls = __get_tls();
   KernelArgumentBlock** args_slot = &reinterpret_cast<KernelArgumentBlock**>(tls)[TLS_SLOT_BIONIC_PREINIT];
   KernelArgumentBlock* args = *args_slot;
 
@@ -75,9 +76,9 @@ __attribute__((constructor)) static void __libc_preinit() {
 
   __libc_init_common(*args);
 
-  // Hooks for the debug malloc and pthread libraries to let them know that we're starting up.
-  pthread_debug_init();
+  // Hooks for various libraries to let them know that we're starting up.
   malloc_debug_init();
+  netdClientInit();
 }
 
 __LIBC_HIDDEN__ void __libc_postfini() {
@@ -93,7 +94,7 @@ __LIBC_HIDDEN__ void __libc_postfini() {
 // Note that the dynamic linker has also run all constructors in the
 // executable at this point.
 __noreturn void __libc_init(void* raw_args,
-                            void (*onexit)(void),
+                            void (*onexit)(void) __unused,
                             int (*slingshot)(int, char**, char**),
                             structors_array_t const * const structors) {
 

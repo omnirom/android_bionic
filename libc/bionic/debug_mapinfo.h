@@ -33,8 +33,8 @@
 
 struct mapinfo_t {
   struct mapinfo_t* next;
-  unsigned start;
-  unsigned end;
+  uintptr_t start;
+  uintptr_t end;
   char name[];
 };
 

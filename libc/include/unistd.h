@@ -47,13 +47,14 @@ __BEGIN_DECLS
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-extern char **environ;
+extern char** environ;
+
 extern __noreturn void _exit(int);
 
 extern pid_t  fork(void);
 extern pid_t  vfork(void);
 extern pid_t  getpid(void);
-extern pid_t  gettid(void);
+extern pid_t  gettid(void) __pure2;
 extern pid_t  getpgid(pid_t);
 extern int    setpgid(pid_t, pid_t);
 extern pid_t  getppid(void);
@@ -64,13 +65,11 @@ extern pid_t  setsid(void);
 
 extern int execv(const char *, char * const *);
 extern int execvp(const char *, char * const *);
+extern int execvpe(const char *, char * const *, char * const *);
 extern int execve(const char *, char * const *, char * const *);
 extern int execl(const char *, const char *, ...);
 extern int execlp(const char *, const char *, ...);
 extern int execle(const char *, const char *, ...);
-
-/* IMPORTANT: See comment under <sys/prctl.h> about this declaration */
-extern int prctl(int  option, ...);
 
 extern int nice(int);
 
@@ -90,7 +89,6 @@ extern int setresuid(uid_t, uid_t, uid_t);
 extern int setresgid(gid_t, gid_t, gid_t);
 extern int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid);
 extern int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
-extern int issetugid(void);
 extern char* getlogin(void);
 extern char* getusershell(void);
 extern void setusershell(void);
@@ -104,24 +102,30 @@ extern void endusershell(void);
 #define X_OK  1  /* Execute */
 #define F_OK  0  /* Existence */
 
-extern int access(const char *, int);
-extern int faccessat(int, const char *, int, int);
-extern int link(const char *, const char *);
-extern int unlink(const char *);
+extern int access(const char*, int);
+extern int faccessat(int, const char*, int, int);
+extern int link(const char*, const char*);
+extern int linkat(int, const char*, int, const char*, int);
+extern int unlink(const char*);
+extern int unlinkat(int, const char*, int);
 extern int chdir(const char *);
 extern int fchdir(int);
 extern int rmdir(const char *);
 extern int pipe(int *);
-#ifdef _GNU_SOURCE  /* GLibc compatibility */
+#ifdef _GNU_SOURCE
 extern int pipe2(int *, int);
 #endif
 extern int chroot(const char *);
-extern int symlink(const char *, const char *);
-extern int readlink(const char *, char *, size_t);
+extern int symlink(const char*, const char*);
+extern int symlinkat(const char*, int, const char*);
+extern ssize_t readlink(const char*, char*, size_t);
+extern ssize_t readlinkat(int, const char*, char*, size_t);
 extern int chown(const char *, uid_t, gid_t);
 extern int fchown(int, uid_t, gid_t);
+extern int fchownat(int, const char*, uid_t, gid_t, int);
 extern int lchown(const char *, uid_t, gid_t);
 extern int truncate(const char *, off_t);
+extern int truncate64(const char *, off64_t);
 extern char *getcwd(char *, size_t);
 
 extern int sync(void);
@@ -139,6 +143,9 @@ extern ssize_t pwrite64(int, const void *, size_t, off64_t);
 
 extern int dup(int);
 extern int dup2(int, int);
+#ifdef _GNU_SOURCE
+extern int dup3(int, int, int);
+#endif
 extern int fcntl(int, int, ...);
 extern int ioctl(int, int, ...);
 extern int flock(int, int);
@@ -150,11 +157,9 @@ extern int ftruncate64(int, off64_t);
 extern int pause(void);
 extern unsigned int alarm(unsigned int);
 extern unsigned int sleep(unsigned int);
-extern int usleep(unsigned long);
+extern int usleep(useconds_t);
 
 extern int gethostname(char *, size_t);
-
-extern int getdtablesize(void);
 
 extern void *__brk(void *);
 extern int brk(void *);
@@ -165,48 +170,65 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 
 extern int isatty(int);
-extern char* ttyname(int);
+extern char* ttyname(int) __warnattr("ttyname is not thread-safe; use ttyname_r instead");
 extern int ttyname_r(int, char*, size_t);
 
 extern int  acct(const char*  filepath);
 
-static __inline__ int getpagesize(void) {
-  extern unsigned int __page_size;
-  return __page_size;
-}
-static __inline__ int __getpageshift(void) {
-  extern unsigned int __page_shift;
-  return __page_shift;
-}
+int getpagesize(void);
 
 extern int sysconf(int  name);
 
 extern int daemon(int, int);
 
-/* A special syscall that is only available on the ARM, not x86 function. */
-extern int cacheflush(long start, long end, long flags);
+#if defined(__arm__) || (defined(__mips__) && !defined(__LP64__))
+extern int cacheflush(long, long, long);
+    /* __attribute__((deprecated("use __builtin___clear_cache instead"))); */
+#endif
 
 extern pid_t tcgetpgrp(int fd);
 extern int   tcsetpgrp(int fd, pid_t _pid);
 
-#if 0 /* MISSING FROM BIONIC */
-extern int execvpe(const char *, char * const *, char * const *);
-extern int execlpe(const char *, const char *, ...);
-extern int getfsuid(uid_t);
-extern int setfsuid(uid_t);
-extern int getlogin_r(char* name, size_t namesize);
-extern int sethostname(const char *, size_t);
-extern int getdomainname(char *, size_t);
-extern int setdomainname(const char *, size_t);
-#endif /* MISSING */
-
 /* Used to retry syscalls that can return EINTR. */
 #define TEMP_FAILURE_RETRY(exp) ({         \
-    typeof (exp) _rc;                      \
+    __typeof__(exp) _rc;                   \
     do {                                   \
         _rc = (exp);                       \
     } while (_rc == -1 && errno == EINTR); \
     _rc; })
+
+#if defined(__BIONIC_FORTIFY)
+extern ssize_t __read_chk(int, void*, size_t, size_t);
+__errordecl(__read_dest_size_error, "read called with size bigger than destination");
+__errordecl(__read_count_toobig_error, "read called with count > SSIZE_MAX");
+extern ssize_t __read_real(int, void*, size_t)
+    __asm__(__USER_LABEL_PREFIX__ "read");
+
+__BIONIC_FORTIFY_INLINE
+ssize_t read(int fd, void* buf, size_t count) {
+    size_t bos = __bos0(buf);
+
+#if !defined(__clang__)
+    if (__builtin_constant_p(count) && (count > SSIZE_MAX)) {
+        __read_count_toobig_error();
+    }
+
+    if (bos == __BIONIC_FORTIFY_UNKNOWN_SIZE) {
+        return __read_real(fd, buf, count);
+    }
+
+    if (__builtin_constant_p(count) && (count > bos)) {
+        __read_dest_size_error();
+    }
+
+    if (__builtin_constant_p(count) && (count <= bos)) {
+        return __read_real(fd, buf, count);
+    }
+#endif
+
+    return __read_chk(fd, buf, count, bos);
+}
+#endif /* defined(__BIONIC_FORTIFY) */
 
 __END_DECLS
 

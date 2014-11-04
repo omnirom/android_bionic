@@ -42,4 +42,5 @@ struct glue {
 	FILE	*iobs;
 };
 
-extern struct glue __sglue;
+/* This was referenced by a couple of different pieces of middleware and the Crystax NDK. */
+__LIBC64_HIDDEN__ extern struct glue __sglue;

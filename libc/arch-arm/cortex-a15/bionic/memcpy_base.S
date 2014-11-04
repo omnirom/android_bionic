@@ -53,8 +53,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-ENTRY(MEMCPY_BASE)
-        .cfi_startproc
+ENTRY_PRIVATE(MEMCPY_BASE)
         .save   {r0, lr}
         .cfi_def_cfa_offset 8
         .cfi_rel_offset r0, 0
@@ -170,12 +169,9 @@ ENTRY(MEMCPY_BASE)
         eor     r3, r0, r1
         ands    r3, r3, #0x3
         bne     .L_copy_unknown_alignment
-
-        .cfi_endproc
 END(MEMCPY_BASE)
 
-ENTRY(MEMCPY_BASE_ALIGNED)
-        .cfi_startproc
+ENTRY_PRIVATE(MEMCPY_BASE_ALIGNED)
         .save   {r0, lr}
         .cfi_def_cfa_offset 8
         .cfi_rel_offset r0, 0
@@ -324,6 +320,4 @@ ENTRY(MEMCPY_BASE_ALIGNED)
 
         // Src is guaranteed to be at least word aligned by this point.
         b       .L_word_aligned
-
-        .cfi_endproc
 END(MEMCPY_BASE_ALIGNED)

@@ -26,8 +26,8 @@
  * SUCH DAMAGE.
  */
 
-#include <machine/asm.h>
-#include "libc_events.h"
+#include <private/bionic_asm.h>
+#include <private/libc_events.h>
 
     .syntax unified
 
@@ -37,7 +37,6 @@
 // Get the length of the source string first, then do a memcpy of the data
 // instead of a strcpy.
 ENTRY(__strcpy_chk)
-    .cfi_startproc
     pld     [r0, #0]
     push    {r0, lr}
     .save   {r0, lr}
@@ -155,16 +154,13 @@ ENTRY(__strcpy_chk)
 
     // Add 1 for copy length to get the string terminator.
     add     r2, r3, #1
-
-    .cfi_endproc
 END(__strcpy_chk)
 
 #define MEMCPY_BASE         __strcpy_chk_memcpy_base
 #define MEMCPY_BASE_ALIGNED __strcpy_chk_memcpy_base_aligned
 #include "memcpy_base.S"
 
-ENTRY(__strcpy_chk_failed)
-    .cfi_startproc
+ENTRY_PRIVATE(__strcpy_chk_failed)
     .save   {r0, lr}
     .cfi_def_cfa_offset 8
     .cfi_rel_offset r0, 0
@@ -179,9 +175,8 @@ error_code:
     .word   BIONIC_EVENT_STRCPY_BUFFER_OVERFLOW
 error_message:
     .word   error_string-(1b+4)
-    .cfi_endproc
 END(__strcpy_chk_failed)
 
     .data
 error_string:
-    .string "strcpy buffer overflow"
+    .string "strcpy: prevented write past end of buffer"

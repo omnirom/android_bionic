@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "private/ErrnoRestorer.h"
+#include "private/libc_logging.h"
 
 struct Pair {
   int code;
@@ -34,7 +35,7 @@ extern "C" __LIBC_HIDDEN__ const char* __strerror_lookup(int error_number) {
 }
 
 static const Pair _sys_signal_strings[] = {
-#define  __BIONIC_SIGDEF(x,y,z)  { y, z },
+#define  __BIONIC_SIGDEF(signal_number, signal_description)  { signal_number, signal_description },
 #include <sys/_sigdefs.h>
   { 0, NULL }
 };
@@ -49,9 +50,9 @@ int strerror_r(int error_number, char* buf, size_t buf_len) {
 
   const char* error_name = __strerror_lookup(error_number);
   if (error_name != NULL) {
-    length = snprintf(buf, buf_len, "%s", error_name);
+    length = strlcpy(buf, error_name, buf_len);
   } else {
-    length = snprintf(buf, buf_len, "Unknown error %d", error_number);
+    length = __libc_format_buffer(buf, buf_len, "Unknown error %d", error_number);
   }
   if (length >= buf_len) {
     errno_restorer.override(ERANGE);
