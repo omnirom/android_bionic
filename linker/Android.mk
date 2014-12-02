@@ -35,6 +35,10 @@ LOCAL_CONLYFLAGS += \
 LOCAL_CPPFLAGS += \
     -std=gnu++11 \
 
+ifeq ($(TARGET_ENABLE_NON_PIE_SUPPORT),true)
+    LOCAL_CFLAGS += -DENABLE_NON_PIE_SUPPORT
+endif
+
 # We need to access Bionic private headers in the linker.
 LOCAL_CFLAGS += -I$(LOCAL_PATH)/../libc/
 
