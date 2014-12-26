@@ -35,8 +35,10 @@ LOCAL_CONLYFLAGS += \
 LOCAL_CPPFLAGS += \
     -std=gnu++11 \
 
-ifeq ($(TARGET_ENABLE_NON_PIE_SUPPORT),true)
+ifneq ($(NON_PIE_SUPPORT_HEADER_DIR),)
     LOCAL_CFLAGS += -DENABLE_NON_PIE_SUPPORT
+    LOCAL_C_INCLUDES += $(NON_PIE_SUPPORT_HEADER_DIR)
+    LOCAL_SRC_FILES += non_pie.cpp
 endif
 
 # We need to access Bionic private headers in the linker.
