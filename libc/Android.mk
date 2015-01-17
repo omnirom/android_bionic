@@ -50,6 +50,7 @@ libc_common_src_files := \
     bionic/initgroups.c \
     bionic/ioctl.c \
     bionic/isatty.c \
+    bionic/md5.c \
     bionic/memmem.c \
     bionic/pathconf.c \
     bionic/pututline.c \
