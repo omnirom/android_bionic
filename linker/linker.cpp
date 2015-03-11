@@ -1497,7 +1497,7 @@ int soinfo::Relocate(ElfW(Rel)* rel, unsigned count) {
             MARK(rel->r_offset);
             TRACE_TYPE(RELO, "RELO %08x <- %d @ %08x %s", reloc, s->st_size, sym_addr, sym_name);
             if (reloc == sym_addr) {
-                ElfW(Sym)* src = soinfo_do_lookup(NULL, sym_name, &lsi, needed);
+                ElfW(Sym)* src = soinfo_do_lookup(NULL, sym_name, &lsi);
 
                 if (src == NULL) {
                     DL_ERR("%s R_ARM_COPY relocation source cannot be resolved", name);
