@@ -105,9 +105,9 @@ __ATOMIC_INLINE__ void
 __bionic_memory_barrier(void)
 {
     __asm__ __volatile__ (
-        __SWITCH_TO_ARM
+        __ATOMIC_SWITCH_TO_ARM
         "mcr p15, 0, %0, c7, c10, 5"
-        __SWITCH_TO_THUMB
+        __ATOMIC_SWITCH_TO_THUMB
         : : "r" (0) : __ATOMIC_CLOBBERS "memory");
 }
 #  endif /* !__ARM_HAVE_DMB */
