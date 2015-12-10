@@ -66,11 +66,6 @@ libc_common_src_files := \
     stdlib/atexit.c \
     stdlib/exit.c \
 
-ifeq ($(TARGET_NEEDS_BIONIC_MD5),true)
-libc_common_src_files += \
-    bionic/md5.c
-endif
-
 # Fortify implementations of libc functions.
 libc_common_src_files += \
     bionic/__FD_chk.cpp \
