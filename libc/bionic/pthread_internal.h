@@ -31,6 +31,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 
+#include "private/bionic_lock.h"
 #include "private/bionic_tls.h"
 
 /* Has the thread been detached by a pthread_join or pthread_detach call? */
@@ -39,7 +40,8 @@
 /* Has the thread been joined by another thread? */
 #define PTHREAD_ATTR_FLAG_JOINED 0x00000002
 
-struct pthread_key_data_t {
+class pthread_key_data_t {
+ public:
   uintptr_t seq; // Use uintptr_t just for alignment, as we use pointer below.
   void* data;
 };
@@ -51,9 +53,12 @@ enum ThreadJoinState {
   THREAD_DETACHED
 };
 
-struct pthread_internal_t {
-  struct pthread_internal_t* next;
-  struct pthread_internal_t* prev;
+class thread_local_dtor;
+
+class pthread_internal_t {
+ public:
+  class pthread_internal_t* next;
+  class pthread_internal_t* prev;
 
   pid_t tid;
 
@@ -89,9 +94,11 @@ struct pthread_internal_t {
 
   void* alternate_signal_stack;
 
-  pthread_mutex_t startup_handshake_mutex;
+  Lock startup_handshake_lock;
 
   size_t mmap_size;
+
+  thread_local_dtor* thread_local_dtors;
 
   void* tls[BIONIC_TLS_SLOTS];
 
