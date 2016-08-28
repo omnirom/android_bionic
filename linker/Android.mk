@@ -58,6 +58,10 @@ ifeq ($(TARGET_ENABLE_NON_PIE_SUPPORT),true)
     LOCAL_CFLAGS += -DENABLE_NON_PIE_SUPPORT
 endif
 
+ifeq ($(TARGET_NEEDS_PLATFORM_TEXTRELS),true)
+LOCAL_CFLAGS += -DALLOW_PLATFORM_TEXTRELS
+endif
+
 # We need to access Bionic private headers in the linker.
 LOCAL_CFLAGS += -I$(LOCAL_PATH)/../libc/
 

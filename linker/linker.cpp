@@ -3994,8 +3994,14 @@ bool soinfo::link_image(const soinfo_list_t& global_group, const soinfo_list_t& 
 
 #if !defined(__LP64__)
   if (has_text_relocations) {
+#ifndef ALLOW_PLATFORM_TEXTRELS
     // Fail if app is targeting sdk version > 22
     if (get_application_target_sdk_version() > 22) {
+#else
+    // Some devices require an exception for platform libs (e.g. vendor libs)
+    if (get_application_target_sdk_version() != __ANDROID_API__ &&
+        get_application_target_sdk_version() > 22) {
+#endif
       PRINT("%s: has text relocations", get_realpath());
       DL_ERR("%s: has text relocations", get_realpath());
       return false;
