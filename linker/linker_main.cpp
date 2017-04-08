@@ -335,6 +335,7 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
   // doesn't cost us anything.
   const char* ldpath_env = nullptr;
   const char* ldpreload_env = nullptr;
+  const char* ldshim_libs_env = nullptr;
   if (!getauxval(AT_SECURE)) {
     ldpath_env = getenv("LD_LIBRARY_PATH");
     if (ldpath_env != nullptr) {
@@ -344,6 +345,7 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
     if (ldpreload_env != nullptr) {
       INFO("[ LD_PRELOAD set to \"%s\" ]", ldpreload_env);
     }
+    ldshim_libs_env = getenv("LD_SHIM_LIBS");
   }
 
   const ExecutableInfo exe_info = exe_to_load ? load_executable(exe_to_load) :
@@ -403,6 +405,7 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
   // Use LD_LIBRARY_PATH and LD_PRELOAD (but only if we aren't setuid/setgid).
   parse_LD_LIBRARY_PATH(ldpath_env);
   parse_LD_PRELOAD(ldpreload_env);
+  parse_LD_SHIM_LIBS(ldshim_libs_env);
 
   std::vector<android_namespace_t*> namespaces = init_default_namespaces(exe_path.c_str());
 
