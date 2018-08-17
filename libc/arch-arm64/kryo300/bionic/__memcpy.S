@@ -26,10 +26,10 @@
  * SUCH DAMAGE.
  */
 
-// Prototype: void *memcpy (void *dst, const void *src, size_t count).
+// Prototype: void *__memcpy (void *dst, const void *src, size_t count).
 
 #include <private/bionic_asm.h>
 
-ENTRY(memcpy)
-  #include "memcpy_base.S"
-END(memcpy)
+ENTRY(__memcpy)
+  #include "__memcpy_base.S"
+END(__memcpy)

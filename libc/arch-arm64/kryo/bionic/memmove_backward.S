@@ -30,6 +30,6 @@
 
 #include <private/bionic_asm.h>
 
-ENTRY(memcpy)
-  #include "memcpy_base.S"
-END(memcpy)
+ENTRY(__memmove_backward)
+  #include "memmove_base.S"
+END(__memmove_backward)
