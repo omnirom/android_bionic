@@ -44,7 +44,7 @@ def convert_names_to_NRs(names, header_dir, extra_switches):
   # Run preprocessor over the __NR_syscall symbols, including unistd.h,
   # to get the actual numbers
   prefix = "__SECCOMP_"  # prefix to ensure no name collisions
-  cpp = Popen(["../../prebuilts/clang/host/linux-x86/clang-stable/bin/clang",
+  cpp = Popen(["../../prebuilts/clang/host/linux-x86/clang-4691093/bin/clang",
                "-E", "-nostdinc", "-I" + header_dir, "-Ikernel/uapi/"]
                + extra_switches
                + ["-"],

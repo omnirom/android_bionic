@@ -5,41 +5,39 @@
 
 #include "seccomp_bpfs.h"
 const sock_filter mips64_app_filter[] = {
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5000, 0, 98),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5151, 49, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5091, 25, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5038, 13, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5023, 7, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5000, 0, 96),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5151, 47, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5089, 23, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5034, 11, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5008, 5, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5005, 3, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5003, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5002, 91, 90), //read|write
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5004, 90, 89), //close
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5008, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5006, 88, 87), //fstat
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5020, 87, 86), //lseek|mmap|mprotect|munmap|brk|rt_sigaction|rt_sigprocmask|ioctl|pread64|pwrite64|readv|writev
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5034, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5031, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5028, 84, 83), //sched_yield|mremap|msync|mincore|madvise
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5032, 83, 82), //dup
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5037, 82, 81), //nanosleep|getitimer|setitimer
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5070, 5, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5057, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5043, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5042, 78, 77), //getpid|sendfile|socket|connect
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5056, 77, 76), //sendto|recvfrom|sendmsg|recvmsg|shutdown|bind|listen|getsockname|getpeername|socketpair|setsockopt|getsockopt|clone
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5062, 76, 75), //execve|exit|wait4|kill|uname
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5089, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5077, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5076, 73, 72), //fcntl|flock|fsync|fdatasync|truncate|ftruncate
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5080, 72, 71), //getcwd|chdir|fchdir
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5090, 71, 70), //fchmod
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5002, 89, 88), //read|write
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5004, 88, 87), //close
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5006, 87, 86), //fstat
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5031, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5023, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5020, 84, 83), //lseek|mmap|mprotect|munmap|brk|rt_sigaction|rt_sigprocmask|ioctl|pread64|pwrite64|readv|writev
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5028, 83, 82), //sched_yield|mremap|msync|mincore|madvise
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5032, 82, 81), //dup
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5057, 5, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5043, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5038, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5037, 78, 77), //nanosleep|getitimer|setitimer
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5042, 77, 76), //getpid|sendfile|socket|connect
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5056, 76, 75), //sendto|recvfrom|sendmsg|recvmsg|shutdown|bind|listen|getsockname|getpeername|socketpair|setsockopt|getsockopt|clone
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5077, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5070, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5062, 73, 72), //execve|exit|wait4|kill|uname
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5076, 72, 71), //fcntl|flock|fsync|fdatasync|truncate|ftruncate
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5080, 71, 70), //getcwd|chdir|fchdir
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5115, 11, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5105, 5, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5102, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5093, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5092, 66, 65), //fchown
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5101, 65, 64), //umask|gettimeofday|getrlimit|getrusage|sysinfo|times|ptrace|getuid
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5103, 64, 63), //getgid
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5093, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5091, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5090, 66, 65), //fchmod
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5092, 65, 64), //fchown
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5103, 64, 63), //umask|gettimeofday|getrlimit|getrusage|sysinfo|times|ptrace|getuid|syslog|getgid
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5112, 3, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5110, 1, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5109, 61, 60), //geteuid|getegid|setpgid|getppid
