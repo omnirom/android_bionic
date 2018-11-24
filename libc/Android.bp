@@ -73,6 +73,12 @@ cc_defaults {
         never: true,
     },
     native_coverage: false,
+
+    product_variables: {
+        target_legacy_mutex_handle: {
+            cflags: ["-DTARGET_LEGACY_MUTEX_HANDLE"],
+        },
+    }
 }
 
 // ANDROIDMK TRANSLATION ERROR: unsupported directive

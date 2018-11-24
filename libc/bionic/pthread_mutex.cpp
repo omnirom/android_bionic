@@ -782,7 +782,14 @@ static int MutexLockWithTimeout(pthread_mutex_internal_t* mutex, bool use_realti
 }  // namespace NonPI
 
 static inline __always_inline bool IsMutexDestroyed(uint16_t mutex_state) {
+    // Checking for mutex destruction is a P-specific behavior. Bypass the
+    // check for pre-P blobs, so that no change in behavior
+    // that may cause crashes is introduced.
+#ifdef TARGET_LEGACY_MUTEX_HANDLE
+    return (mutex_state == 0xffff) & false;
+#else
     return mutex_state == 0xffff;
+#endif
 }
 
 // Inlining this function in pthread_mutex_lock() adds the cost of stack frame instructions on
