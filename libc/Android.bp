@@ -1543,6 +1543,12 @@ cc_library_static {
     cppflags: ["-Wold-style-cast"],
     include_dirs: ["bionic/libstdc++/include"],
     name: "libc_pthread",
+
+    product_variables: {
+        target_legacy_mutex_handle: {
+            cflags: ["-DTARGET_LEGACY_MUTEX_HANDLE"],
+        },
+    },
 }
 
 // ========================================================
