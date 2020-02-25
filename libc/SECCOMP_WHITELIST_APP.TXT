@@ -71,3 +71,6 @@ int compat_select:_newselect(int n, unsigned long* inp, unsigned long* outp, uns
 
 # b/62090571
 int mkdir(const char *pathname, mode_t mode)	arm,x86,mips
+
+# dmesg without root
+int klogctl:syslog(int, char*, int)   arm,x86,mips
