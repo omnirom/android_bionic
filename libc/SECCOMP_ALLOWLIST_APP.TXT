@@ -60,3 +60,5 @@ mkdir(const char *pathname, mode_t mode)	lp32
 # Not used by bionic in U because riscv64 doesn't have it, but still
 # used by legacy apps (http://b/254179267).
 renameat(int, const char*, int, const char*)  arm,x86,arm64,x86_64
+
+syslog(int, char*, int)   all

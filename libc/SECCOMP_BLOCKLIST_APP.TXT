@@ -36,7 +36,6 @@ clock_settime(clockid_t, const struct timespec*)  all
 settimeofday(const struct timeval*, const struct timezone*)   all
 
 acct(const char*  filepath)  all
-syslog(int, char*, int)   all
 chroot(const char*)  all
 
 init_module(void*, unsigned long, const char*)  all
