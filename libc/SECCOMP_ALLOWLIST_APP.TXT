@@ -56,3 +56,5 @@ int compat_select:_newselect(int n, unsigned long* inp, unsigned long* outp, uns
 
 # b/62090571
 int mkdir(const char *pathname, mode_t mode)	lp32
+
+int klogctl:syslog(int, char*, int)   all

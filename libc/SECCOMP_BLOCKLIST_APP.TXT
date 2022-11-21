@@ -34,7 +34,6 @@ int     clock_settime(clockid_t, const struct timespec*)  all
 int     settimeofday(const struct timeval*, const struct timezone*)   all
 
 int     acct(const char*  filepath)  all
-int     klogctl:syslog(int, char*, int)   all
 int     chroot(const char*)  all
 
 # syscalls to change machine various configurations
