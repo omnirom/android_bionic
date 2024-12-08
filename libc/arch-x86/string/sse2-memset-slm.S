@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <private/bionic_asm.h>
 
 #define FOR_SILVERMONT
-#include "cache.h"
 
 #ifndef L
 # define L(label)	.L##label
@@ -64,6 +63,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # define RETURN		RETURN_END; CFI_PUSH(%ebx)
 # define JMPTBL(I, B)	I - B
 
+#define SETUP_PIC_REG(x)	call	__x86.get_pc_thunk.x
+
 /* Load an entry in a jump table into EBX and branch to it.  TABLE is a
    jump table with relative offsets.   */
 # define BRANCH_TO_JMPTBL_ENTRY(TABLE)				\
@@ -78,7 +79,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     /* We loaded the jump table and adjusted EDX. Go.  */	\
     jmp		*%ebx
 
-ENTRY(__memset_chk_generic)
+ENTRY(__memset_chk)
   ENTRANCE
 
   movl LEN(%esp), %ecx
@@ -87,11 +88,11 @@ ENTRY(__memset_chk_generic)
 
   POP(%ebx) // Undo ENTRANCE without returning.
   jmp __memset_chk_fail
-END(__memset_chk_generic)
+END(__memset_chk)
 
 	.section .text.sse2,"ax",@progbits
 	ALIGN(4)
-ENTRY(memset_generic)
+ENTRY(memset)
 	ENTRANCE
 
 	movl	LEN(%esp), %ecx
@@ -177,14 +178,18 @@ L(aligned_16_less128bytes):
 	ALIGN(4)
 L(128bytesormore):
 	PUSH(%ebx)
-	mov	$SHARED_CACHE_SIZE, %ebx
+	SETUP_PIC_REG(bx)
+	add	$_GLOBAL_OFFSET_TABLE_, %ebx
+	mov	__x86_shared_cache_size@GOTOFF(%ebx), %ebx
 	cmp	%ebx, %ecx
 	jae	L(128bytesormore_nt_start)
 
 	POP(%ebx)
 
 	PUSH(%ebx)
-	mov	$DATA_CACHE_SIZE, %ebx
+	SETUP_PIC_REG(bx)
+	add	$_GLOBAL_OFFSET_TABLE_, %ebx
+	mov	__x86_data_cache_size@GOTOFF(%ebx), %ebx
 
 	cmp	%ebx, %ecx
 	jae	L(128bytes_L2_normal)
@@ -750,4 +755,4 @@ L(aligned_16_15bytes):
 	SETRTNVAL
 	RETURN_END
 
-END(memset_generic)
+END(memset)

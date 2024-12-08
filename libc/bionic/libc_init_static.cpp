@@ -30,6 +30,7 @@
 #include <elf.h>
 #include <errno.h>
 #include <malloc.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -289,12 +290,30 @@ static HeapTaggingLevel __get_tagging_level(const memtag_dynamic_entries_t* memt
 
   // We can't short-circuit the environment override, as `stack` is still inherited from the
   // binary's settings.
-  if (get_environment_memtag_setting(&level)) {
-    if (level == M_HEAP_TAGGING_LEVEL_NONE || level == M_HEAP_TAGGING_LEVEL_TBI) {
-      *stack = false;
-    }
-  }
+  get_environment_memtag_setting(&level);
   return level;
+}
+
+static void __enable_mte_signal_handler(int, siginfo_t* info, void*) {
+  if (info->si_code != SI_TIMER) {
+    async_safe_format_log(ANDROID_LOG_ERROR, "libc", "Got BIONIC_ENABLE_MTE not from SI_TIMER");
+    return;
+  }
+  int tagged_addr_ctrl = prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0);
+  if (tagged_addr_ctrl < 0) {
+    async_safe_fatal("failed to PR_GET_TAGGED_ADDR_CTRL: %m");
+  }
+  if ((tagged_addr_ctrl & PR_MTE_TCF_MASK) != PR_MTE_TCF_NONE) {
+    return;
+  }
+  async_safe_format_log(ANDROID_LOG_INFO, "libc",
+                        "Re-enabling MTE, value: %x (tagged_addr_ctrl %lu)",
+                        info->si_value.sival_int, info->si_value.sival_int & PR_MTE_TCF_MASK);
+  tagged_addr_ctrl =
+      (tagged_addr_ctrl & ~PR_MTE_TCF_MASK) | (info->si_value.sival_int & PR_MTE_TCF_MASK);
+  if (prctl(PR_SET_TAGGED_ADDR_CTRL, tagged_addr_ctrl, 0, 0, 0) < 0) {
+    async_safe_fatal("failed to PR_SET_TAGGED_ADDR_CTRL %d: %m", tagged_addr_ctrl);
+  }
 }
 
 static int64_t __get_memtag_upgrade_secs() {
@@ -329,13 +348,14 @@ __attribute__((no_sanitize("hwaddress", "memtag"))) void __libc_init_mte(
   bool memtag_stack = false;
   HeapTaggingLevel level =
       __get_tagging_level(memtag_dynamic_entries, phdr_start, phdr_ct, load_bias, &memtag_stack);
-  // This is used by the linker (in linker.cpp) to communicate than any library linked by this
-  // executable enables memtag-stack.
-  if (__libc_shared_globals()->initial_memtag_stack) {
-    if (!memtag_stack) {
-      async_safe_format_log(ANDROID_LOG_INFO, "libc", "enabling PROT_MTE as requested by linker");
-    }
+  // initial_memtag_stack is used by the linker (in linker.cpp) to communicate than any library
+  // linked by this executable enables memtag-stack.
+  // memtag_stack is also set for static executables if they request memtag stack via the note,
+  // in which case it will differ from initial_memtag_stack.
+  if (__libc_shared_globals()->initial_memtag_stack || memtag_stack) {
     memtag_stack = true;
+    __libc_shared_globals()->initial_memtag_stack_abi = true;
+    __get_bionic_tcb()->tls_slot(TLS_SLOT_STACK_MTE) = __allocate_stack_mte_ringbuffer(0, nullptr);
   }
   if (int64_t timed_upgrade = __get_memtag_upgrade_secs()) {
     if (level == M_HEAP_TAGGING_LEVEL_ASYNC) {
@@ -369,7 +389,10 @@ __attribute__((no_sanitize("hwaddress", "memtag"))) void __libc_init_mte(
           async_safe_fatal("error: failed to set PROT_MTE on main thread stack: %m");
         }
       }
-
+      struct sigaction action = {};
+      action.sa_flags = SA_SIGINFO | SA_RESTART;
+      action.sa_sigaction = __enable_mte_signal_handler;
+      sigaction(BIONIC_ENABLE_MTE, &action, nullptr);
       return;
     }
   }
@@ -398,12 +421,11 @@ void __libc_init_profiling_handlers() {
 }
 
 __attribute__((no_sanitize("memtag"))) __noreturn static void __real_libc_init(
-    void* raw_args, void (*onexit)(void) __unused, int (*slingshot)(int, char**, char**),
-    structors_array_t const* const structors, bionic_tcb* temp_tcb) {
+    KernelArgumentBlock& args, void* raw_args, void (*onexit)(void) __unused,
+    int (*slingshot)(int, char**, char**), structors_array_t const* const structors,
+    bionic_tcb* temp_tcb) {
   BIONIC_STOP_UNWIND;
 
-  // Initialize TLS early so system calls and errno work.
-  KernelArgumentBlock args(raw_args);
   __libc_init_main_thread_early(args, temp_tcb);
   __libc_init_main_thread_late();
   __libc_init_globals();
@@ -450,17 +472,25 @@ extern "C" void __hwasan_init_static();
 __attribute__((no_sanitize("hwaddress", "memtag"))) __noreturn void __libc_init(
     void* raw_args, void (*onexit)(void) __unused, int (*slingshot)(int, char**, char**),
     structors_array_t const* const structors) {
-  bionic_tcb temp_tcb = {};
+  // We _really_ don't want the compiler to call memset() here,
+  // but it's done so before for riscv64 (http://b/365618934),
+  // so we have to force it to behave.
+  bionic_tcb temp_tcb __attribute__((uninitialized));
+  __builtin_memset_inline(&temp_tcb, 0, sizeof(temp_tcb));
+
+  KernelArgumentBlock args(raw_args);
 #if __has_feature(hwaddress_sanitizer)
   // Install main thread TLS early. It will be initialized later in __libc_init_main_thread. For now
-  // all we need is access to TLS_SLOT_SANITIZER.
+  // all we need is access to TLS_SLOT_SANITIZER and read auxval for the page size.
   __set_tls(&temp_tcb.tls_slot(0));
+  __libc_shared_globals()->auxv = args.auxv;
   // Initialize HWASan enough to run instrumented code. This sets up TLS_SLOT_SANITIZER, among other
   // things.
   __hwasan_init_static();
   // We are ready to run HWASan-instrumented code, proceed with libc initialization...
 #endif
-  __real_libc_init(raw_args, onexit, slingshot, structors, &temp_tcb);
+
+  __real_libc_init(args, raw_args, onexit, slingshot, structors, &temp_tcb);
 }
 
 static int g_target_sdk_version{__ANDROID_API__};
