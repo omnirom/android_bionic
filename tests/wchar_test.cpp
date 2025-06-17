@@ -130,22 +130,21 @@ TEST(wchar, wcrtomb_start_state) {
   uselocale(LC_GLOBAL_LOCALE);
 
   char out[MB_LEN_MAX];
-  mbstate_t ps;
+  mbstate_t ps = {};
 
   // Any non-initial state is invalid when calling wcrtomb.
-  memset(&ps, 0, sizeof(ps));
   EXPECT_EQ(static_cast<size_t>(-2), mbrtowc(nullptr, "\xc2", 1, &ps));
   EXPECT_EQ(static_cast<size_t>(-1), wcrtomb(out, 0x00a2, &ps));
   EXPECT_ERRNO(EILSEQ);
 
   // If the first argument to wcrtomb is NULL or the second is L'\0' the shift
   // state should be reset.
-  memset(&ps, 0, sizeof(ps));
+  ps = {};
   EXPECT_EQ(static_cast<size_t>(-2), mbrtowc(nullptr, "\xc2", 1, &ps));
   EXPECT_EQ(1U, wcrtomb(nullptr, 0x00a2, &ps));
   EXPECT_TRUE(mbsinit(&ps));
 
-  memset(&ps, 0, sizeof(ps));
+  ps = {};
   EXPECT_EQ(static_cast<size_t>(-2), mbrtowc(nullptr, "\xf0\xa4", 1, &ps));
   EXPECT_EQ(1U, wcrtomb(out, L'\0', &ps));
   EXPECT_TRUE(mbsinit(&ps));
@@ -253,9 +252,8 @@ TEST(wchar, wcstombs_wcrtombs) {
   EXPECT_STREQ("hix", bytes);
 
   // Any non-initial state is invalid when calling wcsrtombs.
-  mbstate_t ps;
+  mbstate_t ps = {};
   src = chars;
-  memset(&ps, 0, sizeof(ps));
   ASSERT_EQ(static_cast<size_t>(-2), mbrtowc(nullptr, "\xc2", 1, &ps));
   EXPECT_EQ(static_cast<size_t>(-1), wcsrtombs(nullptr, &src, 0, &ps));
   EXPECT_ERRNO(EILSEQ);
@@ -449,8 +447,7 @@ static void test_mbrtowc_incomplete(mbstate_t* ps) {
 }
 
 TEST(wchar, mbrtowc_incomplete) {
-  mbstate_t ps;
-  memset(&ps, 0, sizeof(ps));
+  mbstate_t ps = {};
 
   test_mbrtowc_incomplete(&ps);
   test_mbrtowc_incomplete(nullptr);
@@ -508,8 +505,7 @@ TEST(wchar, mbsrtowcs) {
   ASSERT_STREQ("C.UTF-8", setlocale(LC_CTYPE, "C.UTF-8"));
   uselocale(LC_GLOBAL_LOCALE);
 
-  mbstate_t ps;
-  memset(&ps, 0, sizeof(ps));
+  mbstate_t ps = {};
   test_mbsrtowcs(&ps);
   test_mbsrtowcs(nullptr);
 
@@ -659,12 +655,7 @@ TEST(wchar, mbsnrtowcs) {
 TEST(wchar, wcsftime__wcsftime_l) {
   setenv("TZ", "UTC", 1);
 
-  struct tm t;
-  memset(&t, 0, sizeof(tm));
-  t.tm_year = 200;
-  t.tm_mon = 2;
-  t.tm_mday = 10;
-
+  struct tm t = {.tm_year = 200, .tm_mon = 2, .tm_mday = 10};
   wchar_t buf[64];
 
   EXPECT_EQ(24U, wcsftime(buf, sizeof(buf), L"%c", &t));
@@ -1071,16 +1062,12 @@ TEST(wchar, wcwidth_controls) {
 }
 
 TEST(wchar, wcwidth_non_spacing_and_enclosing_marks_and_format) {
-  if (!have_dl()) return;
-
   EXPECT_EQ(0, wcwidth(0x0300)); // Combining grave.
   EXPECT_EQ(0, wcwidth(0x20dd)); // Combining enclosing circle.
   EXPECT_EQ(0, wcwidth(0x200b)); // Zero width space.
 }
 
 TEST(wchar, wcwidth_non_spacing_special_cases) {
-  if (!have_dl()) return;
-
   // U+00AD is a soft hyphen, which normally shouldn't be rendered at all.
   // I think the assumption here is that you elide the soft hyphen character
   // completely in that case, and never call wcwidth() if you don't want to
@@ -1109,8 +1096,6 @@ TEST(wchar, wcwidth_non_spacing_special_cases) {
 }
 
 TEST(wchar, wcwidth_cjk) {
-  if (!have_dl()) return;
-
   EXPECT_EQ(2, wcwidth(0x4e00)); // Start of CJK unified block.
   EXPECT_EQ(2, wcwidth(0x9fff)); // End of CJK unified block.
   EXPECT_EQ(2, wcwidth(0x3400)); // Start of CJK extension A block.
@@ -1120,16 +1105,12 @@ TEST(wchar, wcwidth_cjk) {
 }
 
 TEST(wchar, wcwidth_korean_combining_jamo) {
-  if (!have_dl()) return;
-
   AssertWcwidthRange(0x1160, 0x1200, 0); // Original range.
   EXPECT_EQ(0, wcwidth(0xd7b0)); // Newer.
   EXPECT_EQ(0, wcwidth(0xd7cb));
 }
 
 TEST(wchar, wcwidth_korean_jeongeul_syllables) {
-  if (!have_dl()) return;
-
   EXPECT_EQ(2, wcwidth(0xac00)); // Start of block.
   EXPECT_EQ(2, wcwidth(0xd7a3)); // End of defined code points as of Unicode 15.
 
@@ -1138,8 +1119,6 @@ TEST(wchar, wcwidth_korean_jeongeul_syllables) {
 }
 
 TEST(wchar, wcwidth_kana) {
-  if (!have_dl()) return;
-
   // Hiragana (most, not undefined).
   AssertWcwidthRange(0x3041, 0x3097, 2);
   // Katakana.
@@ -1147,30 +1126,22 @@ TEST(wchar, wcwidth_kana) {
 }
 
 TEST(wchar, wcwidth_circled_two_digit_cjk) {
-  if (!have_dl()) return;
-
   // Circled two-digit CJK "speed sign" numbers are wide,
   // though EastAsianWidth is ambiguous.
   AssertWcwidthRange(0x3248, 0x3250, 2);
 }
 
 TEST(wchar, wcwidth_hexagrams) {
-  if (!have_dl()) return;
-
   // Hexagrams are wide, though EastAsianWidth is neutral.
   AssertWcwidthRange(0x4dc0, 0x4e00, 2);
 }
 
 TEST(wchar, wcwidth_default_ignorables) {
-  if (!have_dl()) return;
-
   AssertWcwidthRange(0xfff0, 0xfff8, 0); // Unassigned by default ignorable.
   EXPECT_EQ(0, wcwidth(0xe0000)); // ...through 0xe0fff.
 }
 
 TEST(wchar, wcwidth_hangeul_compatibility_jamo) {
-  if (!have_dl()) return;
-
   // These are actually the *compatibility* jamo code points, *not* the regular
   // jamo code points (U+1100-U+11FF) using a jungseong filler. If you use the
   // Android IME to type any of these, you get these code points.

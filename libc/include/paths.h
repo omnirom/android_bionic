@@ -38,16 +38,14 @@
 
 #include <sys/cdefs.h>
 
-#ifndef _PATH_BSHELL
 /** Path to the default system shell. Historically the 'B' was to specify the Bourne shell. */
 #define _PATH_BSHELL "/system/bin/sh"
-#endif
 
 /** Path to the system console. */
 #define _PATH_CONSOLE "/dev/console"
 
 /** Default shell search path. */
-#define _PATH_DEFPATH "/product/bin:/apex/com.android.runtime/bin:/apex/com.android.art/bin:/system_ext/bin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
+#define _PATH_DEFPATH "/product/bin:/apex/com.android.runtime/bin:/apex/com.android.art/bin:/apex/com.android.virt/bin:/system_ext/bin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
 
 /** Path to the directory containing device files. */
 #define _PATH_DEV "/dev/"

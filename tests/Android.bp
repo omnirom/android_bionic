@@ -94,6 +94,13 @@ cc_defaults {
 // Prebuilt shared libraries for use in tests.
 // -----------------------------------------------------------------------------
 
+filegroup {
+    name: "bionic_prebuilt_test_elf_files_arm64",
+    srcs: [
+        "prebuilt-elf-files/arm64/*.so",
+    ],
+}
+
 cc_prebuilt_test_library_shared {
     name: "libtest_invalid-rw_load_segment",
     strip: {
@@ -372,9 +379,6 @@ cc_test_library {
         "bionic_tests_defaults",
         "large_system_property_node_defaults",
     ],
-    tidy_disabled_srcs: [
-        "malloc_test.cpp", // timed out with clang-tidy, and too many warnings
-    ],
     srcs: [
         "__aeabi_read_tp_test.cpp",
         "__cxa_atexit_test.cpp",
@@ -650,7 +654,6 @@ cc_defaults {
     static_libs: [
         "libbase",
     ],
-    tidy: false,
     target: {
         musl: {
             // Musl doesn't have fortify
@@ -659,12 +662,12 @@ cc_defaults {
     },
 }
 
-// Ensure we don't use FORTIFY'ed functions with the static analyzer/clang-tidy:
+// Ensure we don't use FORTIFY'ed functions with the clang static analyzer:
 // it can confuse these tools pretty easily. If this builds successfully, then
 // __clang_analyzer__ overrode FORTIFY. Otherwise, FORTIFY was incorrectly
 // enabled. The library that results from building this is meant to be unused.
 cc_test_library {
-    name: "fortify_disabled_for_tidy",
+    name: "fortify_disabled_for_clang_analyzer",
     defaults: [
         "bionic_clang_fortify_tests_w_flags",
     ],
@@ -674,7 +677,6 @@ cc_test_library {
         "-D__clang_analyzer__",
     ],
     srcs: ["clang_fortify_tests.cpp"],
-    tidy: false,
 }
 
 cc_test_library {
@@ -716,7 +718,6 @@ cc_defaults {
         "-U_FORTIFY_SOURCE",
     ],
     srcs: ["clang_fortify_tests.cpp"],
-    tidy: false,
 }
 
 cc_test_library {
@@ -765,7 +766,6 @@ cc_defaults {
     srcs: [
         "clang_fortify_c_only_tests.c",
     ],
-    tidy: false,
     shared: {
         enabled: false,
     },
@@ -1124,7 +1124,7 @@ cc_test {
     defaults: [
         "bionic_unit_tests_defaults",
     ],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     data: [
         ":libdlext_test_runpath_zip_zipaligned",
         ":libdlext_test_zip_zipaligned",
@@ -1152,7 +1152,7 @@ cc_defaults {
         "libtest_simple_hwasan_nohwasan",
     ],
     header_libs: ["bionic_libc_platform_headers"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
 }
 
 cc_test {
@@ -1203,7 +1203,7 @@ cc_test {
         "testbinary_is_stack_mte_after_dlopen",
     ],
     header_libs: ["bionic_libc_platform_headers"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
 }
 
 cc_test {
@@ -1232,7 +1232,7 @@ cc_test {
         "memtag_stack_abi_test.cpp",
     ],
     header_libs: ["bionic_libc_platform_headers"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
 }
 
 cc_test {
@@ -1276,7 +1276,7 @@ cc_test {
     name: "bionic-unit-tests-static",
     gtest: false,
     defaults: ["bionic_tests_defaults"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     host_supported: false,
 
     srcs: [
@@ -1412,16 +1412,7 @@ cc_test_host {
 
 cc_defaults {
     name: "bionic_compile_time_tests_defaults",
-    enabled: false,
-    target: {
-        linux_x86: {
-            enabled: true,
-        },
-        linux_x86_64: {
-            enabled: true,
-        },
-    },
-    tidy: false,
+    enabled: true,
     clang_verify: true,
     cflags: [
         "-Wall",
@@ -1452,5 +1443,15 @@ cc_library_static {
     ],
     cppflags: [
         "-D_FORTIFY_SOURCE=2",
+    ],
+}
+
+cc_library_static {
+    name: "bionic-compile-time-tests3-clang++",
+    defaults: [
+        "bionic_compile_time_tests_defaults",
+    ],
+    cppflags: [
+        "-D_FORTIFY_SOURCE=3",
     ],
 }

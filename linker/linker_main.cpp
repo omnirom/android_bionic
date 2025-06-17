@@ -366,6 +366,7 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
   }
   solinker->set_realpath(interp);
   init_link_map_head(*solinker);
+  init_sanitizer_mode(interp);
 
 #if defined(__aarch64__)
   __libc_init_mte(somain->memtag_dynamic_entries(), somain->phdr, somain->phnum, somain->load_bias);
@@ -435,9 +436,12 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
     ++ld_preloads_count;
   }
 
-  for_each_dt_needed(si, [&](const char* name) {
-    needed_library_name_list.push_back(name);
-  });
+  for (const ElfW(Dyn)* d = si->dynamic; d->d_tag != DT_NULL; ++d) {
+    if (d->d_tag == DT_NEEDED) {
+      const char* name = fix_dt_needed(si->get_string(d->d_un.d_val), si->get_realpath());
+      needed_library_name_list.push_back(name);
+    }
+  }
 
   const char** needed_library_names = &needed_library_name_list[0];
   size_t needed_libraries_count = needed_library_name_list.size();

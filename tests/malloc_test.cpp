@@ -53,7 +53,7 @@
 #if defined(__BIONIC__)
 
 #include "SignalUtils.h"
-#include "dlext_private.h"
+#include "dlext_private_tests.h"
 
 #include "platform/bionic/malloc.h"
 #include "platform/bionic/mte.h"
@@ -466,6 +466,7 @@ TEST(malloc, malloc_info) {
     // Do not verify output for debug malloc.
     ASSERT_TRUE(version == "debug-malloc-1") << "Unknown version: " << version;
   }
+  printf("Allocator version: %s\n", version.c_str());
 #endif
 }
 
@@ -1774,6 +1775,35 @@ TEST(android_mallopt, get_decay_time_enabled) {
   EXPECT_EQ(1, mallopt(M_DECAY_TIME, -1));
   EXPECT_TRUE(android_mallopt(M_GET_DECAY_TIME_ENABLED, &value, sizeof(value)));
   EXPECT_FALSE(value);
+#else
+  GTEST_SKIP() << "bionic-only test";
+#endif
+}
+
+TEST(android_mallopt, DISABLED_verify_decay_time_on) {
+#if defined(__BIONIC__)
+  bool value;
+  EXPECT_TRUE(android_mallopt(M_GET_DECAY_TIME_ENABLED, &value, sizeof(value)));
+  EXPECT_TRUE(value) << "decay time did not get enabled properly.";
+#endif
+}
+
+TEST(android_mallopt, decay_time_set_using_env_variable) {
+#if defined(__BIONIC__)
+  SKIP_WITH_HWASAN << "hwasan does not implement mallopt";
+
+  bool value;
+  ASSERT_TRUE(android_mallopt(M_GET_DECAY_TIME_ENABLED, &value, sizeof(value)));
+  ASSERT_FALSE(value) << "decay time did not get disabled properly.";
+
+  // Verify that setting the environment variable here will be carried into
+  // fork'd and exec'd processes.
+  ASSERT_EQ(0, setenv("MALLOC_USE_APP_DEFAULTS", "1", 1));
+  ExecTestHelper eth;
+  std::string executable(testing::internal::GetArgvs()[0]);
+  eth.SetArgs({executable.c_str(), "--gtest_also_run_disabled_tests",
+               "--gtest_filter=android_mallopt.DISABLED_verify_decay_time_on", nullptr});
+  eth.Run([&]() { execv(executable.c_str(), eth.GetArgs()); }, 0, R"(\[  PASSED  \] 1 test)");
 #else
   GTEST_SKIP() << "bionic-only test";
 #endif

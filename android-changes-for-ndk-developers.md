@@ -47,10 +47,12 @@ dependencies before loading their main library. Worse, until it was
 dynamic linker's caching code cached failures too, so it was necessary
 to topologically sort your libraries and load them in reverse order.
 
-If you need to support Android devices running OS versions older than
+This issue is no longer relevant to most developers,
+but if you need to support Android devices running OS versions older than
 API level 23, you might want to consider
-[ReLinker](https://github.com/KeepSafe/ReLinker) which claims to solve
-these and other problems automatically.
+[ReLinker](https://github.com/KeepSafe/ReLinker) or
+[SoLoader](https://github.com/facebook/SoLoader),
+which claim to solve these problems automatically.
 
 Alternatively, if you don't have too many dependencies, it can be easiest to
 simply link all of your code into one big library and sidestep the details of
@@ -75,6 +77,17 @@ the breadth-first transitive closure of the library and its DT_NEEDED
 libraries. The API level 23 dynamic linker searches the global group followed by
 the local group. This allows ASAN, for example, to ensure that it can
 intercept any symbol.
+
+This issue is no longer relevant to most developers,
+but if you need to support Android devices running OS versions older than
+API level 23, you might want to consider
+[ReLinker](https://github.com/KeepSafe/ReLinker) or
+[SoLoader](https://github.com/facebook/SoLoader),
+which claim to solve these problems automatically.
+
+Alternatively, if you don't have too many dependencies, it can be easiest to
+simply link all of your code into one big library and sidestep the details of
+library and symbol lookup changes on all past (and future) Android versions.
 
 
 ## LD_PRELOAD and 32/64 bit
@@ -521,3 +534,13 @@ For dynamic executables, we kept sentinel support in `crtbegin_dynamic.o` and
 `libc.so`. This ensures that executables built with newer `crtbegin_dynamic.o`
 (in NDK >= r27) work with older `libc.so` (in Android <= API level 34), and
 vice versa.
+
+
+## Only files named `lib*.so` are copied by `extractNativeLibs` (Enforced for API level <= 35)
+
+Until API level 36, PackageManager would only install files whose names match
+the glob `lib*.so` when extracting native libraries _for non-debuggable apps_.
+This was especially confusing (and hard to debug) because the restriction did
+_not_ apply if your app was debuggable. To be compatible with all API levels,
+always give files that need to be extracted a "lib" prefix and ".so" suffix,
+or avoid using `extractNativeLibs`.

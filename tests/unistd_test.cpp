@@ -1000,6 +1000,9 @@ TEST(UNISTD_TEST, sysconf) {
   VERIFY_SYSCONF_POSITIVE(_SC_EXPR_NEST_MAX);
   VERIFY_SYSCONF_POSITIVE(_SC_LINE_MAX);
   VerifySysconf(_SC_NGROUPS_MAX, "_SC_NGROUPS_MAX", [](long v){return v >= 0 && v <= NGROUPS_MAX;});
+#if defined(__BIONIC__) || defined(_SC_NSIG) // New in POSIX 2024.
+  EXPECT_EQ(NSIG, sysconf(_SC_NSIG));
+#endif
   VERIFY_SYSCONF_POSITIVE(_SC_OPEN_MAX);
   VERIFY_SYSCONF_POSITIVE(_SC_PASS_MAX);
   VERIFY_SYSCONF_POSIX_VERSION(_SC_2_C_BIND);
@@ -1393,9 +1396,7 @@ TEST(UNISTD_TEST, getdomainname) {
 }
 
 TEST(UNISTD_TEST, setdomainname) {
-  __user_cap_header_struct header;
-  memset(&header, 0, sizeof(header));
-  header.version = _LINUX_CAPABILITY_VERSION_3;
+  __user_cap_header_struct header = {.version = _LINUX_CAPABILITY_VERSION_3};
 
   __user_cap_data_struct old_caps[_LINUX_CAPABILITY_U32S_3];
   ASSERT_EQ(0, capget(&header, &old_caps[0]));

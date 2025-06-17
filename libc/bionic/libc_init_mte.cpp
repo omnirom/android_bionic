@@ -246,6 +246,7 @@ static int64_t __get_memtag_upgrade_secs() {
 __attribute__((no_sanitize("hwaddress", "memtag"))) void __libc_init_mte(
     const memtag_dynamic_entries_t* memtag_dynamic_entries, const void* phdr_start, size_t phdr_ct,
     uintptr_t load_bias) {
+  if (__libc_shared_globals()->is_hwasan) return;
   bool memtag_stack = false;
   HeapTaggingLevel level =
       __get_tagging_level(memtag_dynamic_entries, phdr_start, phdr_ct, load_bias, &memtag_stack);
@@ -273,6 +274,7 @@ __attribute__((no_sanitize("hwaddress", "memtag"))) void __libc_init_mte(
     if (prctl(PR_SET_TAGGED_ADDR_CTRL, prctl_arg | PR_MTE_TCF_SYNC, 0, 0, 0) == 0 ||
         prctl(PR_SET_TAGGED_ADDR_CTRL, prctl_arg, 0, 0, 0) == 0) {
       __libc_shared_globals()->initial_heap_tagging_level = level;
+      atomic_store(&__libc_shared_globals()->memtag_currently_on, true);
 
       struct sigaction action = {};
       action.sa_flags = SA_SIGINFO | SA_RESTART;
@@ -320,6 +322,5 @@ void __libc_init_mte_stack(void*) {}
 #endif  // __aarch64__
 
 bool __libc_mte_enabled() {
-  HeapTaggingLevel lvl = __libc_shared_globals()->initial_heap_tagging_level;
-  return lvl == M_HEAP_TAGGING_LEVEL_SYNC || lvl == M_HEAP_TAGGING_LEVEL_ASYNC;
+  return atomic_load(&__libc_shared_globals()->memtag_currently_on);
 }

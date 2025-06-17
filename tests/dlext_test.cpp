@@ -44,7 +44,7 @@
 #include "bionic/mte.h"
 #include "bionic/page.h"
 #include "core_shared_libs.h"
-#include "dlext_private.h"
+#include "dlext_private_tests.h"
 #include "dlfcn_symlink_support.h"
 #include "gtest_globals.h"
 #include "utils.h"
@@ -968,7 +968,6 @@ TEST(dlext, dlopen_ext_use_memfd) {
 
   // create memfd
   int memfd = memfd_create("foobar", MFD_CLOEXEC);
-  if (memfd == -1 && errno == ENOSYS) GTEST_SKIP() << "no memfd_create() in this kernel";
   ASSERT_TRUE(memfd != -1) << strerror(errno);
 
   // Check st.f_type is TMPFS_MAGIC for memfd

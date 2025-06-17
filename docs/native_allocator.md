@@ -9,9 +9,14 @@ at least the
 
 It is important to note that there are two modes for a native allocator
 to run in on Android. The first is the normal allocator, the second is
-called the svelte config, which is designed to run on memory constrained
-systems and be a bit slower, but take less RSS. To enable the svelte config,
-add this line to the `BoardConfig.mk` for the given target:
+called the low memory config, which is designed to run on memory constrained
+systems and be a bit slower, but take less RSS. To enable the low memory
+config, add this line to the `BoardConfig.mk` for the given target:
+
+    MALLOC_LOW_MEMORY := true
+
+This is valid starting with Android V (API level 35), before that the
+way to enable the low memory config is:
 
     MALLOC_SVELTE := true
 
@@ -134,6 +139,20 @@ The last is virtual address space consumed in 32 bit applications. There is
 a limited amount of address space available in 32 bit apps, and there have
 been allocator bugs that cause memory failures when too much virtual
 address space is consumed. For 64 bit executables, this can be ignored.
+
+NOTE: The default native allocator operates differently in an application
+versus command-line tools running in the shell. In order to run the same
+as an application, follow these instructions:
+
+    > adb shell
+    # export MALLOC_USE_APP_DEFAULTS=1
+    # <Run command-line benchmarks>
+
+Running without setting this environment variable can result in different
+performance and even different RSS usage for the benchmarks mentioned below.
+The environment variable has only been available since API level 36.
+Applications using different native allocator defaults than command-line
+tools has been present since API level 26 (Android O).
 
 ### Bionic Benchmarks
 These are the microbenchmarks that are part of the bionic benchmarks suite of
