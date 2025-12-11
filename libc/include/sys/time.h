@@ -46,16 +46,14 @@ int setitimer(int __which, const struct itimerval* _Nonnull __new_value, struct 
 
 int utimes(const char* _Nonnull __path, const struct timeval __times[_Nullable 2]);
 
-#if defined(__USE_BSD)
-
-#if __BIONIC_AVAILABILITY_GUARD(26)
+#if defined(__USE_BSD) && __BIONIC_AVAILABILITY_GUARD(26)
 int futimes(int __fd, const struct timeval __times[_Nullable 2]) __INTRODUCED_IN(26);
-int lutimes(const char* _Nonnull __path, const struct timeval __times[_Nullable 2]) __INTRODUCED_IN(26);
-#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
-
 #endif
 
-#if defined(__USE_GNU)
+#if defined(__USE_BSD) && __BIONIC_AVAILABILITY_GUARD(26)
+int lutimes(const char* _Nonnull __path, const struct timeval __times[_Nullable 2]) __INTRODUCED_IN(26);
+#endif
+
 /**
  * [futimesat(2)](https://man7.org/linux/man-pages/man2/futimesat.2.html) sets
  * file timestamps.
@@ -67,13 +65,10 @@ int lutimes(const char* _Nonnull __path, const struct timeval __times[_Nullable 
  *
  * Returns 0 on success and -1 and sets `errno` on failure.
  *
- * Available since API level 26.
+ * Available since API level 26 when compiling with `_GNU_SOURCE`.
  */
-
-#if __BIONIC_AVAILABILITY_GUARD(26)
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(26)
 int futimesat(int __dir_fd, const char* __BIONIC_COMPLICATED_NULLNESS __path, const struct timeval __times[_Nullable 2]) __INTRODUCED_IN(26);
-#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
-
 #endif
 
 #define timerclear(a)   \

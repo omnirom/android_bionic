@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <malloc.h>
+#include <stdbit.h>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -37,7 +38,7 @@ __END_DECLS
 
 void* je_pvalloc(size_t bytes) {
   size_t pagesize = getpagesize();
-  size_t size = __BIONIC_ALIGN(bytes, pagesize);
+  size_t size = __builtin_align_up(bytes, pagesize);
   if (size < bytes) {
     return nullptr;
   }
@@ -48,17 +49,12 @@ void* je_pvalloc(size_t bytes) {
 #undef je_memalign
 #endif
 
-// The man page for memalign says it fails if boundary is not a power of 2,
-// but this is not true. Both glibc and dlmalloc round up to the next power
-// of 2, so we'll do the same.
 void* je_memalign_round_up_boundary(size_t boundary, size_t size) {
-  if (boundary != 0) {
-    if (!powerof2(boundary)) {
-      boundary = BIONIC_ROUND_UP_POWER_OF_2(boundary);
-    }
-  } else {
-    boundary = 1;
-  }
+  // The man page for memalign says it fails if boundary is not a power of 2,
+  // but this is not true. Both glibc and dlmalloc round up to the next power
+  // of 2, so we'll do the same.
+  boundary = stdc_bit_ceil(boundary);
+
   return je_memalign(boundary, size);
 }
 

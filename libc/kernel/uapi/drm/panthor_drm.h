@@ -28,21 +28,8 @@ enum drm_panthor_ioctl_id {
   DRM_PANTHOR_GROUP_GET_STATE,
   DRM_PANTHOR_TILER_HEAP_CREATE,
   DRM_PANTHOR_TILER_HEAP_DESTROY,
+  DRM_PANTHOR_BO_SET_LABEL,
 };
-#define DRM_IOCTL_PANTHOR(__access,__id,__type) DRM_IO ##__access(DRM_COMMAND_BASE + DRM_PANTHOR_ ##__id, struct drm_panthor_ ##__type)
-#define DRM_IOCTL_PANTHOR_DEV_QUERY DRM_IOCTL_PANTHOR(WR, DEV_QUERY, dev_query)
-#define DRM_IOCTL_PANTHOR_VM_CREATE DRM_IOCTL_PANTHOR(WR, VM_CREATE, vm_create)
-#define DRM_IOCTL_PANTHOR_VM_DESTROY DRM_IOCTL_PANTHOR(WR, VM_DESTROY, vm_destroy)
-#define DRM_IOCTL_PANTHOR_VM_BIND DRM_IOCTL_PANTHOR(WR, VM_BIND, vm_bind)
-#define DRM_IOCTL_PANTHOR_VM_GET_STATE DRM_IOCTL_PANTHOR(WR, VM_GET_STATE, vm_get_state)
-#define DRM_IOCTL_PANTHOR_BO_CREATE DRM_IOCTL_PANTHOR(WR, BO_CREATE, bo_create)
-#define DRM_IOCTL_PANTHOR_BO_MMAP_OFFSET DRM_IOCTL_PANTHOR(WR, BO_MMAP_OFFSET, bo_mmap_offset)
-#define DRM_IOCTL_PANTHOR_GROUP_CREATE DRM_IOCTL_PANTHOR(WR, GROUP_CREATE, group_create)
-#define DRM_IOCTL_PANTHOR_GROUP_DESTROY DRM_IOCTL_PANTHOR(WR, GROUP_DESTROY, group_destroy)
-#define DRM_IOCTL_PANTHOR_GROUP_SUBMIT DRM_IOCTL_PANTHOR(WR, GROUP_SUBMIT, group_submit)
-#define DRM_IOCTL_PANTHOR_GROUP_GET_STATE DRM_IOCTL_PANTHOR(WR, GROUP_GET_STATE, group_get_state)
-#define DRM_IOCTL_PANTHOR_TILER_HEAP_CREATE DRM_IOCTL_PANTHOR(WR, TILER_HEAP_CREATE, tiler_heap_create)
-#define DRM_IOCTL_PANTHOR_TILER_HEAP_DESTROY DRM_IOCTL_PANTHOR(WR, TILER_HEAP_DESTROY, tiler_heap_destroy)
 struct drm_panthor_obj_array {
   __u32 stride;
   __u32 count;
@@ -64,6 +51,8 @@ struct drm_panthor_sync_op {
 enum drm_panthor_dev_query_type {
   DRM_PANTHOR_DEV_QUERY_GPU_INFO = 0,
   DRM_PANTHOR_DEV_QUERY_CSIF_INFO,
+  DRM_PANTHOR_DEV_QUERY_TIMESTAMP_INFO,
+  DRM_PANTHOR_DEV_QUERY_GROUP_PRIORITIES_INFO,
 };
 struct drm_panthor_gpu_info {
   __u32 gpu_id;
@@ -107,6 +96,15 @@ struct drm_panthor_csif_info {
   __u32 scoreboard_slot_count;
   __u32 unpreserved_cs_reg_count;
   __u32 pad;
+};
+struct drm_panthor_timestamp_info {
+  __u64 timestamp_frequency;
+  __u64 current_timestamp;
+  __u64 timestamp_offset;
+};
+struct drm_panthor_group_priorities_info {
+  __u8 allowed_mask;
+  __u8 pad[3];
 };
 struct drm_panthor_dev_query {
   __u32 type;
@@ -179,6 +177,7 @@ enum drm_panthor_group_priority {
   PANTHOR_GROUP_PRIORITY_LOW = 0,
   PANTHOR_GROUP_PRIORITY_MEDIUM,
   PANTHOR_GROUP_PRIORITY_HIGH,
+  PANTHOR_GROUP_PRIORITY_REALTIME,
 };
 struct drm_panthor_group_create {
   struct drm_panthor_obj_array queues;
@@ -213,6 +212,7 @@ struct drm_panthor_group_submit {
 enum drm_panthor_group_state_flags {
   DRM_PANTHOR_GROUP_STATE_TIMEDOUT = 1 << 0,
   DRM_PANTHOR_GROUP_STATE_FATAL_FAULT = 1 << 1,
+  DRM_PANTHOR_GROUP_STATE_INNOCENT = 1 << 2,
 };
 struct drm_panthor_group_get_state {
   __u32 group_handle;
@@ -233,6 +233,28 @@ struct drm_panthor_tiler_heap_create {
 struct drm_panthor_tiler_heap_destroy {
   __u32 handle;
   __u32 pad;
+};
+struct drm_panthor_bo_set_label {
+  __u32 handle;
+  __u32 pad;
+  __u64 label;
+};
+#define DRM_IOCTL_PANTHOR(__access,__id,__type) DRM_IO ##__access(DRM_COMMAND_BASE + DRM_PANTHOR_ ##__id, struct drm_panthor_ ##__type)
+enum {
+  DRM_IOCTL_PANTHOR_DEV_QUERY = DRM_IOCTL_PANTHOR(WR, DEV_QUERY, dev_query),
+  DRM_IOCTL_PANTHOR_VM_CREATE = DRM_IOCTL_PANTHOR(WR, VM_CREATE, vm_create),
+  DRM_IOCTL_PANTHOR_VM_DESTROY = DRM_IOCTL_PANTHOR(WR, VM_DESTROY, vm_destroy),
+  DRM_IOCTL_PANTHOR_VM_BIND = DRM_IOCTL_PANTHOR(WR, VM_BIND, vm_bind),
+  DRM_IOCTL_PANTHOR_VM_GET_STATE = DRM_IOCTL_PANTHOR(WR, VM_GET_STATE, vm_get_state),
+  DRM_IOCTL_PANTHOR_BO_CREATE = DRM_IOCTL_PANTHOR(WR, BO_CREATE, bo_create),
+  DRM_IOCTL_PANTHOR_BO_MMAP_OFFSET = DRM_IOCTL_PANTHOR(WR, BO_MMAP_OFFSET, bo_mmap_offset),
+  DRM_IOCTL_PANTHOR_GROUP_CREATE = DRM_IOCTL_PANTHOR(WR, GROUP_CREATE, group_create),
+  DRM_IOCTL_PANTHOR_GROUP_DESTROY = DRM_IOCTL_PANTHOR(WR, GROUP_DESTROY, group_destroy),
+  DRM_IOCTL_PANTHOR_GROUP_SUBMIT = DRM_IOCTL_PANTHOR(WR, GROUP_SUBMIT, group_submit),
+  DRM_IOCTL_PANTHOR_GROUP_GET_STATE = DRM_IOCTL_PANTHOR(WR, GROUP_GET_STATE, group_get_state),
+  DRM_IOCTL_PANTHOR_TILER_HEAP_CREATE = DRM_IOCTL_PANTHOR(WR, TILER_HEAP_CREATE, tiler_heap_create),
+  DRM_IOCTL_PANTHOR_TILER_HEAP_DESTROY = DRM_IOCTL_PANTHOR(WR, TILER_HEAP_DESTROY, tiler_heap_destroy),
+  DRM_IOCTL_PANTHOR_BO_SET_LABEL = DRM_IOCTL_PANTHOR(WR, BO_SET_LABEL, bo_set_label),
 };
 #ifdef __cplusplus
 }

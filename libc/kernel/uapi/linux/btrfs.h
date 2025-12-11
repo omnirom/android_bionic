@@ -311,13 +311,20 @@ struct btrfs_ioctl_clone_range_args {
 };
 #define BTRFS_DEFRAG_RANGE_COMPRESS 1
 #define BTRFS_DEFRAG_RANGE_START_IO 2
-#define BTRFS_DEFRAG_RANGE_FLAGS_SUPP (BTRFS_DEFRAG_RANGE_COMPRESS | BTRFS_DEFRAG_RANGE_START_IO)
+#define BTRFS_DEFRAG_RANGE_COMPRESS_LEVEL 4
+#define BTRFS_DEFRAG_RANGE_FLAGS_SUPP (BTRFS_DEFRAG_RANGE_COMPRESS | BTRFS_DEFRAG_RANGE_COMPRESS_LEVEL | BTRFS_DEFRAG_RANGE_START_IO)
 struct btrfs_ioctl_defrag_range_args {
   __u64 start;
   __u64 len;
   __u64 flags;
   __u32 extent_thresh;
-  __u32 compress_type;
+  union {
+    __u32 compress_type;
+    struct {
+      __u8 type;
+      __s8 level;
+    } compress;
+  };
   __u32 unused[4];
 };
 #define BTRFS_SAME_DATA_DIFFERS 1
@@ -486,6 +493,16 @@ struct btrfs_ioctl_encoded_io_args {
 #define BTRFS_ENCODED_IO_COMPRESSION_TYPES 8
 #define BTRFS_ENCODED_IO_ENCRYPTION_NONE 0
 #define BTRFS_ENCODED_IO_ENCRYPTION_TYPES 1
+struct btrfs_ioctl_subvol_wait {
+  __u64 subvolid;
+  __u32 mode;
+  __u32 count;
+};
+#define BTRFS_SUBVOL_SYNC_WAIT_FOR_ONE (0)
+#define BTRFS_SUBVOL_SYNC_WAIT_FOR_QUEUED (1)
+#define BTRFS_SUBVOL_SYNC_COUNT (2)
+#define BTRFS_SUBVOL_SYNC_PEEK_FIRST (3)
+#define BTRFS_SUBVOL_SYNC_PEEK_LAST (4)
 enum btrfs_err_code {
   BTRFS_ERROR_DEV_RAID1_MIN_NOT_MET = 1,
   BTRFS_ERROR_DEV_RAID10_MIN_NOT_MET,
@@ -561,6 +578,7 @@ enum btrfs_err_code {
 #define BTRFS_IOC_SNAP_DESTROY_V2 _IOW(BTRFS_IOCTL_MAGIC, 63, struct btrfs_ioctl_vol_args_v2)
 #define BTRFS_IOC_ENCODED_READ _IOR(BTRFS_IOCTL_MAGIC, 64, struct btrfs_ioctl_encoded_io_args)
 #define BTRFS_IOC_ENCODED_WRITE _IOW(BTRFS_IOCTL_MAGIC, 64, struct btrfs_ioctl_encoded_io_args)
+#define BTRFS_IOC_SUBVOL_SYNC_WAIT _IOW(BTRFS_IOCTL_MAGIC, 65, struct btrfs_ioctl_subvol_wait)
 #ifdef __cplusplus
 }
 #endif

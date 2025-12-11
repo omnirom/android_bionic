@@ -60,6 +60,7 @@ struct io_uring_sqe {
     __u32 futex_flags;
     __u32 install_fd_flags;
     __u32 nop_flags;
+    __u32 pipe_flags;
   };
   __u64 user_data;
   union {
@@ -70,10 +71,15 @@ struct io_uring_sqe {
   union {
     __s32 splice_fd_in;
     __u32 file_index;
+    __u32 zcrx_ifq_idx;
     __u32 optlen;
     struct {
       __u16 addr_len;
       __u16 __pad3[1];
+    };
+    struct {
+      __u8 write_stream;
+      __u8 __pad4[3];
     };
   };
   union {
@@ -81,9 +87,22 @@ struct io_uring_sqe {
       __u64 addr3;
       __u64 __pad2[1];
     };
+    struct {
+      __u64 attr_ptr;
+      __u64 attr_type_mask;
+    };
     __u64 optval;
     __u8 cmd[0];
   };
+};
+#define IORING_RW_ATTR_FLAG_PI (1U << 0)
+struct io_uring_attr_pi {
+  __u16 flags;
+  __u16 app_tag;
+  __u32 len;
+  __u64 addr;
+  __u64 seed;
+  __u64 rsvd;
 };
 #define IORING_FILE_INDEX_ALLOC (~0U)
 enum io_uring_sqe_flags_bit {
@@ -119,6 +138,7 @@ enum io_uring_sqe_flags_bit {
 #define IORING_SETUP_NO_MMAP (1U << 14)
 #define IORING_SETUP_REGISTERED_FD_ONLY (1U << 15)
 #define IORING_SETUP_NO_SQARRAY (1U << 16)
+#define IORING_SETUP_HYBRID_IOPOLL (1U << 17)
 enum io_uring_op {
   IORING_OP_NOP,
   IORING_OP_READV,
@@ -178,6 +198,11 @@ enum io_uring_op {
   IORING_OP_FTRUNCATE,
   IORING_OP_BIND,
   IORING_OP_LISTEN,
+  IORING_OP_RECV_ZC,
+  IORING_OP_EPOLL_WAIT,
+  IORING_OP_READV_FIXED,
+  IORING_OP_WRITEV_FIXED,
+  IORING_OP_PIPE,
   IORING_OP_LAST,
 };
 #define IORING_URING_CMD_FIXED (1U << 0)
@@ -220,6 +245,9 @@ enum io_uring_msg_ring_flags {
 #define IORING_MSG_RING_FLAGS_PASS (1U << 1)
 #define IORING_FIXED_FD_NO_CLOEXEC (1U << 0)
 #define IORING_NOP_INJECT_RESULT (1U << 0)
+#define IORING_NOP_FILE (1U << 1)
+#define IORING_NOP_FIXED_FILE (1U << 2)
+#define IORING_NOP_FIXED_BUFFER (1U << 3)
 struct io_uring_cqe {
   __u64 user_data;
   __s32 res;
@@ -270,6 +298,8 @@ struct io_cqring_offsets {
 #define IORING_ENTER_EXT_ARG (1U << 3)
 #define IORING_ENTER_REGISTERED_RING (1U << 4)
 #define IORING_ENTER_ABS_TIMER (1U << 5)
+#define IORING_ENTER_EXT_ARG_REG (1U << 6)
+#define IORING_ENTER_NO_IOWAIT (1U << 7)
 struct io_uring_params {
   __u32 sq_entries;
   __u32 cq_entries;
@@ -298,6 +328,8 @@ struct io_uring_params {
 #define IORING_FEAT_REG_REG_RING (1U << 13)
 #define IORING_FEAT_RECVSEND_BUNDLE (1U << 14)
 #define IORING_FEAT_MIN_TIMEOUT (1U << 15)
+#define IORING_FEAT_RW_ATTR (1U << 16)
+#define IORING_FEAT_NO_IOWAIT (1U << 17)
 enum io_uring_register_op {
   IORING_REGISTER_BUFFERS = 0,
   IORING_UNREGISTER_BUFFERS = 1,
@@ -330,6 +362,10 @@ enum io_uring_register_op {
   IORING_UNREGISTER_NAPI = 28,
   IORING_REGISTER_CLOCK = 29,
   IORING_REGISTER_CLONE_BUFFERS = 30,
+  IORING_REGISTER_SEND_MSG_RING = 31,
+  IORING_REGISTER_ZCRX_IFQ = 32,
+  IORING_REGISTER_RESIZE_RINGS = 33,
+  IORING_REGISTER_MEM_REGION = 34,
   IORING_REGISTER_LAST,
   IORING_REGISTER_USE_REGISTERED_RING = 1U << 31
 };
@@ -341,6 +377,25 @@ struct io_uring_files_update {
   __u32 offset;
   __u32 resv;
   __aligned_u64 fds;
+};
+enum {
+  IORING_MEM_REGION_TYPE_USER = 1,
+};
+struct io_uring_region_desc {
+  __u64 user_addr;
+  __u64 size;
+  __u32 flags;
+  __u32 id;
+  __u64 mmap_offset;
+  __u64 __resv[4];
+};
+enum {
+  IORING_MEM_REGION_REG_WAIT_ARG = 1,
+};
+struct io_uring_mem_region_reg {
+  __u64 region_uptr;
+  __u64 flags;
+  __u64 __resv[2];
 };
 #define IORING_RSRC_REGISTER_SPARSE (1U << 0)
 struct io_uring_rsrc_register {
@@ -393,12 +448,16 @@ struct io_uring_clock_register {
   __u32 __resv[3];
 };
 enum {
-  IORING_REGISTER_SRC_REGISTERED = 1,
+  IORING_REGISTER_SRC_REGISTERED = (1U << 0),
+  IORING_REGISTER_DST_REPLACE = (1U << 1),
 };
 struct io_uring_clone_buffers {
   __u32 src_fd;
   __u32 flags;
-  __u32 pad[6];
+  __u32 src_off;
+  __u32 dst_off;
+  __u32 nr;
+  __u32 pad[3];
 };
 struct io_uring_buf {
   __u64 addr;
@@ -433,11 +492,23 @@ struct io_uring_buf_status {
   __u32 head;
   __u32 resv[8];
 };
+enum io_uring_napi_op {
+  IO_URING_NAPI_REGISTER_OP = 0,
+  IO_URING_NAPI_STATIC_ADD_ID = 1,
+  IO_URING_NAPI_STATIC_DEL_ID = 2
+};
+enum io_uring_napi_tracking_strategy {
+  IO_URING_NAPI_TRACKING_DYNAMIC = 0,
+  IO_URING_NAPI_TRACKING_STATIC = 1,
+  IO_URING_NAPI_TRACKING_INACTIVE = 255
+};
 struct io_uring_napi {
   __u32 busy_poll_to;
   __u8 prefer_busy_poll;
-  __u8 pad[3];
-  __u64 resv;
+  __u8 opcode;
+  __u8 pad[2];
+  __u32 op_param;
+  __u32 resv;
 };
 enum io_uring_register_restriction_op {
   IORING_RESTRICTION_REGISTER_OP = 0,
@@ -445,6 +516,18 @@ enum io_uring_register_restriction_op {
   IORING_RESTRICTION_SQE_FLAGS_ALLOWED = 2,
   IORING_RESTRICTION_SQE_FLAGS_REQUIRED = 3,
   IORING_RESTRICTION_LAST
+};
+enum {
+  IORING_REG_WAIT_TS = (1U << 0),
+};
+struct io_uring_reg_wait {
+  struct __kernel_timespec ts;
+  __u32 min_wait_usec;
+  __u32 flags;
+  __u64 sigmask;
+  __u32 sigmask_sz;
+  __u32 pad[3];
+  __u64 pad2[2];
 };
 struct io_uring_getevents_arg {
   __u64 sigmask;
@@ -477,6 +560,47 @@ enum io_uring_socket_op {
   SOCKET_URING_OP_SIOCOUTQ,
   SOCKET_URING_OP_GETSOCKOPT,
   SOCKET_URING_OP_SETSOCKOPT,
+};
+struct io_uring_zcrx_rqe {
+  __u64 off;
+  __u32 len;
+  __u32 __pad;
+};
+struct io_uring_zcrx_cqe {
+  __u64 off;
+  __u64 __pad;
+};
+#define IORING_ZCRX_AREA_SHIFT 48
+#define IORING_ZCRX_AREA_MASK (~(((__u64) 1 << IORING_ZCRX_AREA_SHIFT) - 1))
+struct io_uring_zcrx_offsets {
+  __u32 head;
+  __u32 tail;
+  __u32 rqes;
+  __u32 __resv2;
+  __u64 __resv[2];
+};
+enum io_uring_zcrx_area_flags {
+  IORING_ZCRX_AREA_DMABUF = 1,
+};
+struct io_uring_zcrx_area_reg {
+  __u64 addr;
+  __u64 len;
+  __u64 rq_area_token;
+  __u32 flags;
+  __u32 dmabuf_fd;
+  __u64 __resv2[2];
+};
+struct io_uring_zcrx_ifq_reg {
+  __u32 if_idx;
+  __u32 if_rxq;
+  __u32 rq_entries;
+  __u32 flags;
+  __u64 area_ptr;
+  __u64 region_ptr;
+  struct io_uring_zcrx_offsets offsets;
+  __u32 zcrx_id;
+  __u32 __resv2;
+  __u64 __resv[3];
 };
 #ifdef __cplusplus
 }

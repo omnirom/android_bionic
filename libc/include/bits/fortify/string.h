@@ -30,9 +30,11 @@
 #error "Never include this file directly; instead, include <string.h>"
 #endif
 
-
 #if __BIONIC_AVAILABILITY_GUARD(23)
 void* _Nullable __memchr_chk(const void* _Nonnull, int, size_t, size_t) __INTRODUCED_IN(23);
+#endif /* __BIONIC_AVAILABILITY_GUARD(23) */
+
+#if __BIONIC_AVAILABILITY_GUARD(23)
 void* _Nullable __memrchr_chk(const void* _Nonnull, int, size_t, size_t) __INTRODUCED_IN(23);
 #endif /* __BIONIC_AVAILABILITY_GUARD(23) */
 
@@ -71,7 +73,7 @@ void* _Nonnull memset(void* _Nonnull const s __pass_object_size0, int c, size_t 
         __diagnose_as_builtin(__builtin_memset, 1, 2, 3)
         __overloadable
         /* If you're a user who wants this warning to go away: use `(&memset)(foo, bar, baz)`. */
-        __clang_warning_if(c && !n, "'memset' will set 0 bytes; maybe the arguments got flipped?") {
+        __clang_warning_if(!n, "'memset' will set 0 bytes; maybe the arguments got flipped?") {
 /* hwasan intercepts memset() but not the _chk variant. */
 #if __BIONIC_FORTIFY_RUNTIME_CHECKS_ENABLED && !__has_feature(hwaddress_sanitizer)
     return __builtin___memset_chk(s, c, n, __bos0(s));
@@ -80,14 +82,11 @@ void* _Nonnull memset(void* _Nonnull const s __pass_object_size0, int c, size_t 
 #endif
 }
 
-#if defined(__USE_GNU)
-#if __ANDROID_API__ >= 30
+#if defined(__USE_GNU) && __ANDROID_API__ >= 30
 __BIONIC_FORTIFY_INLINE
 void* _Nonnull mempcpy(void* _Nonnull const dst __pass_object_size0, const void* _Nonnull src, size_t copy_amount)
         __diagnose_as_builtin(__builtin_mempcpy, 1, 2, 3)
-        __overloadable
-        __clang_error_if(__bos_unevaluated_lt(__bos0(dst), copy_amount),
-                         "'mempcpy' called with size bigger than buffer") {
+        __overloadable {
 #if __BIONIC_FORTIFY_RUNTIME_CHECKS_ENABLED
     size_t bos_dst = __bos0(dst);
     if (!__bos_trivially_ge(bos_dst, copy_amount)) {
@@ -96,8 +95,7 @@ void* _Nonnull mempcpy(void* _Nonnull const dst __pass_object_size0, const void*
 #endif
     return __builtin_mempcpy(dst, src, copy_amount);
 }
-#endif /* __ANDROID_API__ >= 30 */
-#endif /* __USE_GNU */
+#endif
 
 __BIONIC_FORTIFY_INLINE
 char* _Nonnull stpcpy(char* _Nonnull const dst __pass_object_size, const char* _Nonnull src)
@@ -114,9 +112,7 @@ char* _Nonnull stpcpy(char* _Nonnull const dst __pass_object_size, const char* _
 __BIONIC_FORTIFY_INLINE
 char* _Nonnull strcpy(char* _Nonnull const dst __pass_object_size, const char* _Nonnull src)
         __diagnose_as_builtin(__builtin_strcpy, 1, 2)
-        __overloadable
-        __clang_error_if(__bos_unevaluated_le(__bos(dst), __builtin_strlen(src)),
-                         "'strcpy' called with string bigger than buffer") {
+        __overloadable {
 #if __BIONIC_FORTIFY_RUNTIME_CHECKS_ENABLED
     return __builtin___strcpy_chk(dst, src, __bos(dst));
 #else

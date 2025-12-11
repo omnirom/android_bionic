@@ -63,8 +63,14 @@ char* _Nullable mktemp(char* _Nonnull __template) __attribute__((__deprecated__(
 
 #if __BIONIC_AVAILABILITY_GUARD(23)
 int mkostemp64(char* _Nonnull __template, int __flags) __INTRODUCED_IN(23);
+#endif /* __BIONIC_AVAILABILITY_GUARD(23) */
+#if __BIONIC_AVAILABILITY_GUARD(23)
 int mkostemp(char* _Nonnull __template, int __flags) __INTRODUCED_IN(23);
+#endif /* __BIONIC_AVAILABILITY_GUARD(23) */
+#if __BIONIC_AVAILABILITY_GUARD(23)
 int mkostemps64(char* _Nonnull __template, int __suffix_length, int __flags) __INTRODUCED_IN(23);
+#endif /* __BIONIC_AVAILABILITY_GUARD(23) */
+#if __BIONIC_AVAILABILITY_GUARD(23)
 int mkostemps(char* _Nonnull __template, int __suffix_length, int __flags) __INTRODUCED_IN(23);
 #endif /* __BIONIC_AVAILABILITY_GUARD(23) */
 
@@ -125,6 +131,9 @@ __nodiscard void* _Nullable bsearch(const void* _Nonnull __key, const void* _Nul
 /**
  * [qsort(3)](https://man7.org/linux/man-pages/man3/qsort.3.html) sorts an array
  * of n elements each of the given size, using the given comparator.
+ *
+ * qsort() is not stable, so elements with the same key might be reordered.
+ * libc++ offers both std::sort() and std::stable_sort().
  */
 void qsort(void* _Nullable __array, size_t __n, size_t __size, int (* _Nonnull __comparator)(const void* _Nullable __lhs, const void* _Nullable __rhs));
 
@@ -133,13 +142,15 @@ void qsort(void* _Nullable __array, size_t __n, size_t __size, int (* _Nonnull _
  * array of n elements each of the given size, using the given comparator,
  * and passing the given context argument to the comparator.
  *
+ * qsort_r() is not stable, so elements with the same key might be reordered.
+ * libc++ offers both std::sort() and std::stable_sort().
+ *
  * Available since API level 36.
+ * std::sort() is available at all API levels.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(36)
 void qsort_r(void* _Nullable __array, size_t __n, size_t __size, int (* _Nonnull __comparator)(const void* _Nullable __lhs, const void* _Nullable __rhs, void* _Nullable __context), void* _Nullable __context) __INTRODUCED_IN(36);
 #endif /* __BIONIC_AVAILABILITY_GUARD(36) */
-
 
 uint32_t arc4random(void);
 uint32_t arc4random_uniform(uint32_t __upper_bound);
@@ -172,17 +183,22 @@ char* _Nullable ptsname(int __fd);
 int ptsname_r(int __fd, char* _Nonnull __buf, size_t __n);
 int unlockpt(int __fd);
 
-
 #if __BIONIC_AVAILABILITY_GUARD(26)
 int getsubopt(char* _Nonnull * _Nonnull __option, char* _Nonnull const* _Nonnull __tokens, char* _Nullable * _Nonnull __value_ptr) __INTRODUCED_IN(26);
 #endif /* __BIONIC_AVAILABILITY_GUARD(26) */
-
 
 typedef struct {
   int quot;
   int rem;
 } div_t;
 
+/**
+ * Returns `__numerator / __denominator` and `__numerator % __denominator`,
+ * truncating towards zero.
+ *
+ * This function was useful for portability before C99,
+ * where `/` and `%` were also defined to truncate towards zero.
+ */
 div_t div(int __numerator, int __denominator) __attribute_const__;
 
 typedef struct {
@@ -190,6 +206,13 @@ typedef struct {
   long int rem;
 } ldiv_t;
 
+/**
+ * Returns `__numerator / __denominator` and `__numerator % __denominator`,
+ * truncating towards zero.
+ *
+ * This function was useful for portability before C99,
+ * where `/` and `%` were also defined to truncate towards zero.
+ */
 ldiv_t ldiv(long __numerator, long __denominator) __attribute_const__;
 
 typedef struct {
@@ -197,6 +220,13 @@ typedef struct {
   long long int rem;
 } lldiv_t;
 
+/**
+ * Returns `__numerator / __denominator` and `__numerator % __denominator`,
+ * truncating towards zero.
+ *
+ * This function was useful for portability before C99,
+ * where `/` and `%` were also defined to truncate towards zero.
+ */
 lldiv_t lldiv(long long __numerator, long long __denominator) __attribute_const__;
 
 /**
@@ -206,7 +236,6 @@ lldiv_t lldiv(long long __numerator, long long __denominator) __attribute_const_
  *
  * Returns the number of samples written to `__averages` (at most 3), and returns -1 on failure.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(29)
 int getloadavg(double __averages[_Nonnull], int __n) __INTRODUCED_IN(29);
 #endif /* __BIONIC_AVAILABILITY_GUARD(29) */
@@ -215,7 +244,6 @@ int getloadavg(double __averages[_Nonnull], int __n) __INTRODUCED_IN(29);
 /* BSD compatibility. */
 const char* _Nullable getprogname(void);
 void setprogname(const char* _Nonnull __name);
-
 
 #if __BIONIC_AVAILABILITY_GUARD(26)
 int mblen(const char* _Nullable __s, size_t __n) __INTRODUCED_IN(26);
@@ -234,8 +262,22 @@ size_t __ctype_get_mb_cur_max(void);
 #include <bits/fortify/stdlib.h>
 #endif
 
+/**
+ * Returns the absolute value where possible.
+ * For the most negative value, the result is unchanged (and thus also negative).
+ */
 int abs(int __x) __attribute_const__;
+
+/**
+ * Returns the absolute value where possible.
+ * For the most negative value, the result is unchanged (and thus also negative).
+ */
 long labs(long __x) __attribute_const__;
+
+/**
+ * Returns the absolute value where possible.
+ * For the most negative value, the result is unchanged (and thus also negative).
+ */
 long long llabs(long long __x) __attribute_const__;
 
 int rand(void);

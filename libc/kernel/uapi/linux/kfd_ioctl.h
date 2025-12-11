@@ -9,7 +9,7 @@
 #include <drm/drm.h>
 #include <linux/ioctl.h>
 #define KFD_IOCTL_MAJOR_VERSION 1
-#define KFD_IOCTL_MINOR_VERSION 17
+#define KFD_IOCTL_MINOR_VERSION 18
 struct kfd_ioctl_get_version_args {
   __u32 major_version;
   __u32 minor_version;
@@ -21,6 +21,7 @@ struct kfd_ioctl_get_version_args {
 #define KFD_IOC_QUEUE_TYPE_SDMA_BY_ENG_ID 0x4
 #define KFD_MAX_QUEUE_PERCENTAGE 100
 #define KFD_MAX_QUEUE_PRIORITY 15
+#define KFD_MIN_QUEUE_RING_SIZE 1024
 struct kfd_ioctl_create_queue_args {
   __u64 ring_base_address;
   __u64 write_pointer_address;
@@ -95,13 +96,14 @@ struct kfd_dbg_device_info_entry {
 };
 #define KFD_IOC_CACHE_POLICY_COHERENT 0
 #define KFD_IOC_CACHE_POLICY_NONCOHERENT 1
+#define KFD_PROC_FLAG_MFMA_HIGH_PRECISION (1 << 0)
 struct kfd_ioctl_set_memory_policy_args {
   __u64 alternate_aperture_base;
   __u64 alternate_aperture_size;
   __u32 gpu_id;
   __u32 default_policy;
   __u32 alternate_policy;
-  __u32 pad;
+  __u32 misc_process_flag;
 };
 struct kfd_ioctl_get_clock_counters_args {
   __u64 gpu_clock_counter;
@@ -334,6 +336,8 @@ enum kfd_smi_event {
   KFD_SMI_EVENT_QUEUE_EVICTION = 9,
   KFD_SMI_EVENT_QUEUE_RESTORE = 10,
   KFD_SMI_EVENT_UNMAP_FROM_GPU = 11,
+  KFD_SMI_EVENT_PROCESS_START = 12,
+  KFD_SMI_EVENT_PROCESS_END = 13,
   KFD_SMI_EVENT_ALL_PROCESS = 64
 };
 enum KFD_MIGRATE_TRIGGERS {
@@ -367,10 +371,11 @@ struct kfd_ioctl_smi_events_args {
 #define KFD_EVENT_FMT_PAGEFAULT_START(ns,pid,addr,node,rw) "%lld -%d @%lx(%x) %c\n", (ns), (pid), (addr), (node), (rw)
 #define KFD_EVENT_FMT_PAGEFAULT_END(ns,pid,addr,node,migrate_update) "%lld -%d @%lx(%x) %c\n", (ns), (pid), (addr), (node), (migrate_update)
 #define KFD_EVENT_FMT_MIGRATE_START(ns,pid,start,size,from,to,prefetch_loc,preferred_loc,migrate_trigger) "%lld -%d @%lx(%lx) %x->%x %x:%x %d\n", (ns), (pid), (start), (size), (from), (to), (prefetch_loc), (preferred_loc), (migrate_trigger)
-#define KFD_EVENT_FMT_MIGRATE_END(ns,pid,start,size,from,to,migrate_trigger) "%lld -%d @%lx(%lx) %x->%x %d\n", (ns), (pid), (start), (size), (from), (to), (migrate_trigger)
+#define KFD_EVENT_FMT_MIGRATE_END(ns,pid,start,size,from,to,migrate_trigger,error_code) "%lld -%d @%lx(%lx) %x->%x %d %d\n", (ns), (pid), (start), (size), (from), (to), (migrate_trigger), (error_code)
 #define KFD_EVENT_FMT_QUEUE_EVICTION(ns,pid,node,evict_trigger) "%lld -%d %x %d\n", (ns), (pid), (node), (evict_trigger)
 #define KFD_EVENT_FMT_QUEUE_RESTORE(ns,pid,node,rescheduled) "%lld -%d %x %c\n", (ns), (pid), (node), (rescheduled)
 #define KFD_EVENT_FMT_UNMAP_FROM_GPU(ns,pid,addr,size,node,unmap_trigger) "%lld -%d @%lx(%lx) %x %d\n", (ns), (pid), (addr), (size), (node), (unmap_trigger)
+#define KFD_EVENT_FMT_PROCESS(pid,task_name) "%x %s\n", (pid), (task_name)
 enum kfd_criu_op {
   KFD_CRIU_OP_PROCESS_INFO,
   KFD_CRIU_OP_CHECKPOINT,

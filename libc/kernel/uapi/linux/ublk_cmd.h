@@ -31,6 +31,8 @@
 #define UBLK_U_CMD_GET_DEV_INFO2 _IOR('u', UBLK_CMD_GET_DEV_INFO2, struct ublksrv_ctrl_cmd)
 #define UBLK_U_CMD_GET_FEATURES _IOR('u', 0x13, struct ublksrv_ctrl_cmd)
 #define UBLK_U_CMD_DEL_DEV_ASYNC _IOR('u', 0x14, struct ublksrv_ctrl_cmd)
+#define UBLK_U_CMD_UPDATE_SIZE _IOWR('u', 0x15, struct ublksrv_ctrl_cmd)
+#define UBLK_U_CMD_QUIESCE_DEV _IOWR('u', 0x16, struct ublksrv_ctrl_cmd)
 #define UBLK_FEATURES_LEN 8
 #define UBLK_IO_FETCH_REQ 0x20
 #define UBLK_IO_COMMIT_AND_FETCH_REQ 0x21
@@ -38,6 +40,8 @@
 #define UBLK_U_IO_FETCH_REQ _IOWR('u', UBLK_IO_FETCH_REQ, struct ublksrv_io_cmd)
 #define UBLK_U_IO_COMMIT_AND_FETCH_REQ _IOWR('u', UBLK_IO_COMMIT_AND_FETCH_REQ, struct ublksrv_io_cmd)
 #define UBLK_U_IO_NEED_GET_DATA _IOWR('u', UBLK_IO_NEED_GET_DATA, struct ublksrv_io_cmd)
+#define UBLK_U_IO_REGISTER_IO_BUF _IOWR('u', 0x23, struct ublksrv_io_cmd)
+#define UBLK_U_IO_UNREGISTER_IO_BUF _IOWR('u', 0x24, struct ublksrv_io_cmd)
 #define UBLK_IO_RES_OK 0
 #define UBLK_IO_RES_NEED_GET_DATA 1
 #define UBLK_IO_RES_ABORT (- ENODEV)
@@ -65,9 +69,15 @@
 #define UBLK_F_CMD_IOCTL_ENCODE (1UL << 6)
 #define UBLK_F_USER_COPY (1UL << 7)
 #define UBLK_F_ZONED (1ULL << 8)
+#define UBLK_F_USER_RECOVERY_FAIL_IO (1ULL << 9)
+#define UBLK_F_UPDATE_SIZE (1ULL << 10)
+#define UBLK_F_AUTO_BUF_REG (1ULL << 11)
+#define UBLK_F_QUIESCE (1ULL << 12)
+#define UBLK_F_PER_IO_DAEMON (1ULL << 13)
 #define UBLK_S_DEV_DEAD 0
 #define UBLK_S_DEV_LIVE 1
 #define UBLK_S_DEV_QUIESCED 2
+#define UBLK_S_DEV_FAIL_IO 3
 struct ublksrv_ctrl_cmd {
   __u32 dev_id;
   __u16 queue_id;
@@ -114,6 +124,7 @@ struct ublksrv_ctrl_dev_info {
 #define UBLK_IO_F_FUA (1U << 13)
 #define UBLK_IO_F_NOUNMAP (1U << 15)
 #define UBLK_IO_F_SWAP (1U << 16)
+#define UBLK_IO_F_NEED_REG_BUF (1U << 17)
 struct ublksrv_io_desc {
   __u32 op_flags;
   union {
@@ -122,6 +133,14 @@ struct ublksrv_io_desc {
   };
   __u64 start_sector;
   __u64 addr;
+};
+#define UBLK_AUTO_BUF_REG_FALLBACK (1 << 0)
+#define UBLK_AUTO_BUF_REG_F_MASK UBLK_AUTO_BUF_REG_FALLBACK
+struct ublk_auto_buf_reg {
+  __u16 index;
+  __u8 flags;
+  __u8 reserved0;
+  __u32 reserved1;
 };
 struct ublksrv_io_cmd {
   __u16 q_id;
@@ -167,16 +186,31 @@ struct ublk_param_zoned {
   __u32 max_zone_append_sectors;
   __u8 reserved[20];
 };
+struct ublk_param_dma_align {
+  __u32 alignment;
+  __u8 pad[4];
+};
+#define UBLK_MIN_SEGMENT_SIZE 4096
+struct ublk_param_segment {
+  __u64 seg_boundary_mask;
+  __u32 max_segment_size;
+  __u16 max_segments;
+  __u8 pad[2];
+};
 struct ublk_params {
   __u32 len;
 #define UBLK_PARAM_TYPE_BASIC (1 << 0)
 #define UBLK_PARAM_TYPE_DISCARD (1 << 1)
 #define UBLK_PARAM_TYPE_DEVT (1 << 2)
 #define UBLK_PARAM_TYPE_ZONED (1 << 3)
+#define UBLK_PARAM_TYPE_DMA_ALIGN (1 << 4)
+#define UBLK_PARAM_TYPE_SEGMENT (1 << 5)
   __u32 types;
   struct ublk_param_basic basic;
   struct ublk_param_discard discard;
   struct ublk_param_devt devt;
   struct ublk_param_zoned zoned;
+  struct ublk_param_dma_align dma;
+  struct ublk_param_segment seg;
 };
 #endif

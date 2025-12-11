@@ -38,14 +38,14 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
+__BEGIN_DECLS
+
 struct group {
   char* _Nullable gr_name; /* group name */
   char* _Nullable gr_passwd; /* group password */
   gid_t gr_gid; /* group id */
   char* _Nullable * _Nullable gr_mem; /* group members */
 };
-
-__BEGIN_DECLS
 
 struct group* _Nullable getgrgid(gid_t __gid);
 struct group* _Nullable getgrnam(const char* _Nonnull __name);
@@ -54,14 +54,21 @@ struct group* _Nullable getgrnam(const char* _Nonnull __name);
 
 #if __BIONIC_AVAILABILITY_GUARD(26)
 struct group* _Nullable getgrent(void) __INTRODUCED_IN(26);
+#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
 
+#if __BIONIC_AVAILABILITY_GUARD(26)
 void setgrent(void) __INTRODUCED_IN(26);
+#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
+
+#if __BIONIC_AVAILABILITY_GUARD(26)
 void endgrent(void) __INTRODUCED_IN(26);
 #endif /* __BIONIC_AVAILABILITY_GUARD(26) */
 
-
 #if __BIONIC_AVAILABILITY_GUARD(24)
 int getgrgid_r(gid_t __gid, struct group* __BIONIC_COMPLICATED_NULLNESS __group, char* _Nonnull __buf, size_t __n, struct group* _Nullable * _Nonnull __result) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int getgrnam_r(const char* _Nonnull __name, struct group* __BIONIC_COMPLICATED_NULLNESS __group, char* _Nonnull __buf, size_t __n, struct group* _Nullable *_Nonnull __result) __INTRODUCED_IN(24);
 #endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 

@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <math.h>
+#include <sys/param.h>
 #include <sys/resource.h>
 
 #include <map>
@@ -250,8 +251,8 @@ static bool ParseOnebufManualStr(std::string& arg, args_vector_t* to_populate) {
     return false;
   }
 
-  // Verify the alignment is powers of 2.
-  if (align != 0 && (align & (align - 1)) != 0) {
+  // Verify the alignment is a power of 2.
+  if (align != 0 && !powerof2(align)) {
     return false;
   }
 
@@ -296,8 +297,7 @@ static bool ParseTwobufManualStr(std::string& arg, args_vector_t* to_populate) {
   }
 
   // Verify the alignments are powers of 2.
-  if ((align1 != 0 && (align1 & (align1 - 1)) != 0)
-      || (align2 != 0 && (align2 & (align2 - 1)) != 0)) {
+  if ((align1 != 0 && !powerof2(align1)) || (align2 != 0 && !powerof2(align2))) {
     return false;
   }
 
@@ -401,8 +401,8 @@ void RegisterCliBenchmarks(bench_opts_t cmdline_opts,
   // Register any of the extra benchmarks that were specified in the options.
   args_vector_t arg_vector;
   args_vector_t* run_args = &arg_vector;
-  for (const std::string& extra_fn : cmdline_opts.extra_benchmarks) {
-    android::base::Trim(extra_fn);
+  for (std::string extra_fn : cmdline_opts.extra_benchmarks) {
+    extra_fn = android::base::Trim(extra_fn);
     size_t first_space_pos = extra_fn.find(' ');
     std::string fn_name = extra_fn.substr(0, first_space_pos);
     std::string cmd_args;

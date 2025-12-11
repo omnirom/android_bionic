@@ -47,6 +47,10 @@ __BEGIN_DECLS
 
 /**
  * dladdr() returns information using this structure.
+ * `Dl_info` is the traditional name for this,
+ * and thus the more portable choice.
+ * POSIX accidentally standardized `Dl_info_t` instead in 2024,
+ * so we provide both names.
  */
 typedef struct {
   /** Pathname of the shared object that contains the given address. */
@@ -57,7 +61,7 @@ typedef struct {
   const char* _Nullable dli_sname;
   /** Exact address of the symbol named in `dli_sname`. */
   void* _Nullable dli_saddr;
-} Dl_info;
+} Dl_info, Dl_info_t;
 
 /**
  * [dlopen(3)](https://man7.org/linux/man-pages/man3/dlopen.3.html)
@@ -146,7 +150,6 @@ void* _Nullable dlsym(void* __BIONIC_COMPLICATED_NULLNESS __handle, const char* 
  * Returns the address of the symbol on success, and returns NULL on failure,
  * in which case dlerror() can be used to retrieve the specific error.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(24)
 void* _Nullable dlvsym(void* __BIONIC_COMPLICATED_NULLNESS __handle, const char* _Nullable __symbol, const char* _Nullable __version) __INTRODUCED_IN(24);
 #endif /* __BIONIC_AVAILABILITY_GUARD(24) */

@@ -4,8 +4,8 @@
  * See https://android.googlesource.com/platform/bionic/+/master/libc/kernel/
  * for more information.
  */
-#ifndef __LINUX_PKT_CLS_H
-#define __LINUX_PKT_CLS_H
+#ifndef _UAPI__LINUX_PKT_CLS_H
+#define _UAPI__LINUX_PKT_CLS_H
 #include <linux/types.h>
 #include <linux/pkt_sched.h>
 #define TC_COOKIE_MAX_SIZE 16
@@ -179,12 +179,7 @@ struct tc_u32_key {
   int offmask;
 };
 struct tc_u32_sel {
-  /**
-   ** ANDROID FIX: Comment out TAG value to avoid C++ error about using
-   ** a type declared in an anonymous union. This is being fixed upstream
-   ** and should be corrected by the next kernel import.
-   */
-  __struct_group(/*tc_u32_sel_hdr*/, hdr,, unsigned char flags;
+  __struct_group(tc_u32_sel_hdr, hdr,, unsigned char flags;
   unsigned char offshift;
   unsigned char nkeys;
   __be16 offmask;
@@ -519,6 +514,7 @@ enum {
   __TCA_FLOWER_KEY_CFM_OPT_MAX,
 };
 #define TCA_FLOWER_KEY_CFM_OPT_MAX (__TCA_FLOWER_KEY_CFM_OPT_MAX - 1)
+#define TCA_FLOWER_KEY_CFM_MAX (__TCA_FLOWER_KEY_CFM_OPT_MAX - 1)
 #define TCA_FLOWER_MASK_FLAGS_RANGE (1 << 0)
 struct tc_matchall_pcnt {
   __u64 rhit;

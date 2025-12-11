@@ -39,6 +39,8 @@
 
 #include <bits/pthread_types.h>
 
+__BEGIN_DECLS
+
 /* gids, uids, and pids are all 32-bit. */
 typedef __kernel_gid32_t __gid_t;
 typedef __gid_t gid_t;
@@ -119,29 +121,35 @@ typedef __socklen_t socklen_t;
 
 typedef __builtin_va_list __va_list;
 
-#ifndef _SSIZE_T_DEFINED_
-#define _SSIZE_T_DEFINED_
-/* Traditionally, bionic's ssize_t was "long int". This caused GCC to emit warnings when you
- * pass a ssize_t to a printf-style function. The correct type is __kernel_ssize_t, which is
- * "int", which isn't an ABI change for C code (because they're the same size) but is an ABI
- * change for C++ because "int" and "long int" mangle to "i" and "l" respectively. So until
- * we can fix the ABI, this change should not be propagated to the NDK. http://b/8253769. */
+/**
+ * A signed alternative to size_t,
+ * generally for cases that return -1 and set errno on error.
+ */
 typedef __kernel_ssize_t ssize_t;
-#endif
 
+/** BSD synonym for unsigned int that's always exposed by historical accident. */
 typedef unsigned int        uint_t;
+/** BSD synonym for unsigned int that's always exposed by historical accident. */
 typedef unsigned int        uint;
 
-#if defined(__USE_BSD) || defined(__BIONIC__) /* Historically bionic exposed these. */
+/** BSD synonym for unsigned char that's always exposed by historical accident. */
 typedef unsigned char  u_char;
+/** BSD synonym for unsigned short that's always exposed by historical accident. */
 typedef unsigned short u_short;
+/** BSD synonym for unsigned int that's always exposed by historical accident. */
 typedef unsigned int   u_int;
+/** BSD synonym for unsigned long that's always exposed by historical accident. */
 typedef unsigned long  u_long;
 
+/** BSD synonym for uint32_t that's always exposed by historical accident. */
 typedef uint32_t u_int32_t;
+/** BSD synonym for uint16_t that's always exposed by historical accident. */
 typedef uint16_t u_int16_t;
+/** BSD synonym for uint8_t that's always exposed by historical accident. */
 typedef uint8_t  u_int8_t;
+/** BSD synonym for uint64_t that's always exposed by historical accident. */
 typedef uint64_t u_int64_t;
-#endif
+
+__END_DECLS
 
 #endif

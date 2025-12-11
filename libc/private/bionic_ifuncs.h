@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <sys/cdefs.h>
+
 #include <stdint.h>
 #include <sys/ifunc.h>
 
@@ -96,6 +98,12 @@ typedef void* memcpy_func_t(void*, const void*, size_t);
 #define MEMCPY_SHIM()                                                     \
   DEFINE_STATIC_SHIM(void* memcpy(void* dst, const void* src, size_t n) { \
     FORWARD(memcpy)(dst, src, n);                                         \
+  })
+
+typedef void* __memcpy_chk_func_t(void*, const void*, size_t, size_t);
+#define __MEMCPY_CHK_SHIM()                                                                \
+  DEFINE_STATIC_SHIM(void* __memcpy_chk(void* dst, const void* src, size_t n, size_t n2) { \
+    FORWARD(__memcpy_chk)(dst, src, n, n2);                                                \
   })
 
 typedef void* memmove_func_t(void*, const void*, size_t);

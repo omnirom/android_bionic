@@ -40,6 +40,7 @@ struct drm_msm_timespec {
 #define MSM_PARAM_RAYTRACING 0x11
 #define MSM_PARAM_UBWC_SWIZZLE 0x12
 #define MSM_PARAM_MACROTILE_MODE 0x13
+#define MSM_PARAM_UCHE_TRAP_BASE 0x14
 #define MSM_PARAM_NR_RINGS MSM_PARAM_PRIORITIES
 struct drm_msm_param {
   __u32 pipe;
@@ -169,7 +170,8 @@ struct drm_msm_gem_madvise {
   __u32 madv;
   __u32 retained;
 };
-#define MSM_SUBMITQUEUE_FLAGS (0)
+#define MSM_SUBMITQUEUE_ALLOW_PREEMPT 0x00000001
+#define MSM_SUBMITQUEUE_FLAGS (MSM_SUBMITQUEUE_ALLOW_PREEMPT | 0)
 struct drm_msm_submitqueue {
   __u32 flags;
   __u32 prio;

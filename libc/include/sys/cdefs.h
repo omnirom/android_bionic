@@ -50,6 +50,7 @@
 #define __END_DECLS
 #endif
 
+/** Adds an alias for a symbol that's defined in the same .o file. */
 #define __strong_alias(alias, sym) \
     __asm__(".global " #alias "\n" \
             #alias " = " #sym);
@@ -59,8 +60,6 @@
 #else
 #define __BIONIC_CAST(_k,_t,_v) ((_t) (_v))
 #endif
-
-#define __BIONIC_ALIGN(__value, __alignment) (((__value) + (__alignment)-1) & ~((__alignment)-1))
 
 /*
  * The nullness constraints of this parameter or return value are
@@ -143,19 +142,15 @@
 #define __nodiscard __attribute__((__warn_unused_result__))
 #define __wur __nodiscard
 
-#define __errorattr(msg) __attribute__((__unavailable__(msg)))
-#define __warnattr(msg) __attribute__((__deprecated__(msg)))
-#define __warnattr_real(msg) __attribute__((__deprecated__(msg)))
 #define __enable_if(cond, msg) __attribute__((__enable_if__(cond, msg)))
 #define __clang_error_if(cond, msg) __attribute__((__diagnose_if__(cond, msg, "error")))
 #define __clang_warning_if(cond, msg) __attribute__((__diagnose_if__(cond, msg, "warning")))
 
 #if defined(ANDROID_STRICT)
 /*
- * For things that are sketchy, but not necessarily an error. FIXME: Enable
- * this.
+ * For things that are sketchy, but not necessarily an error.
  */
-#  define __warnattr_strict(msg) /* __warnattr(msg) */
+#  define __warnattr_strict(msg) __attribute__((__deprecated__(msg)))
 #else
 #  define __warnattr_strict(msg)
 #endif
@@ -247,12 +242,21 @@
 #  define __bos_level 0
 #endif
 
-#define __bosn(s, n) __builtin_object_size((s), (n))
+#if _FORTIFY_SOURCE >= 3
+#  define __bosn(s, n) __builtin_dynamic_object_size((s), (n))
+#else
+#  define __bosn(s, n) __builtin_object_size((s), (n))
+#endif
 #define __bos(s) __bosn((s), __bos_level)
 
 #if defined(__BIONIC_FORTIFY)
 #  define __bos0(s) __bosn((s), 0)
-#  define __pass_object_size_n(n) __attribute__((__pass_object_size__(n)))
+#  if _FORTIFY_SOURCE >= 3
+#    define __pass_object_size_n(n) __attribute__((__pass_dynamic_object_size__(n)))
+#  else
+#    define __pass_object_size_n(n) __attribute__((__pass_object_size__(n)))
+#  endif
+
 /*
  * FORTIFY'ed functions all have either enable_if or pass_object_size, which
  * makes taking their address impossible. Saying (&read)(foo, bar, baz); will
@@ -291,8 +295,8 @@
 
 /* Intended for use in evaluated contexts. */
 #define __bos_dynamic_check_impl_and(bos_val, op, index, cond) \
-  ((bos_val) == __BIONIC_FORTIFY_UNKNOWN_SIZE ||                 \
-   (__builtin_constant_p(index) && bos_val op index && (cond)))
+  (__builtin_constant_p(bos_val) && ((bos_val) == __BIONIC_FORTIFY_UNKNOWN_SIZE || \
+   (__builtin_constant_p(index) && bos_val op index && (cond))))
 
 #define __bos_dynamic_check_impl(bos_val, op, index) \
   __bos_dynamic_check_impl_and(bos_val, op, index, 1)
@@ -323,15 +327,6 @@
 
 /* Used to rename functions so that the compiler emits a call to 'x' rather than the function this was applied to. */
 #define __RENAME(x) __asm__(#x)
-
-/*
- * Used when we need to check for overflow when multiplying x and y. This
- * should only be used where __builtin_umull_overflow can not work, because it makes
- * assumptions that __builtin_umull_overflow doesn't (x and y are positive, ...),
- * *and* doesn't make use of compiler intrinsics, so it's probably slower than
- * __builtin_umull_overflow.
- */
-#define __unsafe_check_mul_overflow(x, y) ((__SIZE_TYPE__)-1 / (x) < (y))
 
 #include <android/versioning.h>
 #include <android/api-level.h>

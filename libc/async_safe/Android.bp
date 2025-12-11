@@ -8,15 +8,16 @@ package {
     // to get the below license kinds:
     //   SPDX-license-identifier-BSD
     default_applicable_licenses: ["bionic_libc_license"],
+    default_team: "trendy_team_native_tools_libraries",
 }
 
 cc_library_static {
+    name: "libasync_safe",
     defaults: ["libc_defaults"],
     srcs: [
         "async_safe_log.cpp",
     ],
 
-    name: "libasync_safe",
     vendor_available: true,
     product_available: true,
     recovery_available: true,

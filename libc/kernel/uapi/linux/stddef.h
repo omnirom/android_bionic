@@ -10,7 +10,12 @@
 #ifndef __always_inline
 #define __always_inline inline
 #endif
-#define __struct_group(TAG,NAME,ATTRS,MEMBERS...) union { struct { MEMBERS } ATTRS; struct TAG { MEMBERS } ATTRS NAME; } ATTRS
+#ifndef __cplusplus
+#define __struct_group_tag(TAG) TAG
+#else
+#define __struct_group_tag(TAG)
+#endif
+#define __struct_group(TAG,NAME,ATTRS,MEMBERS...) union { struct { MEMBERS } ATTRS; struct __struct_group_tag(TAG) { MEMBERS } ATTRS NAME; } ATTRS
 #ifdef __cplusplus
 #define __DECLARE_FLEX_ARRAY(T,member) T member[0]
 #else
@@ -25,4 +30,5 @@
 #ifndef __counted_by_be
 #define __counted_by_be(m)
 #endif
+#define __kernel_nonstring
 #endif

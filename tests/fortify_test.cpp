@@ -28,11 +28,18 @@
 #include <time.h>
 
 #include <android-base/silent_death_test.h>
+#include <android-base/test_utils.h>
 
 #if defined(__BIONIC__)
 #define ASSERT_FORTIFY(expr) ASSERT_EXIT(expr, testing::KilledBySignal(SIGABRT), "FORTIFY")
 #else
 #define ASSERT_FORTIFY(expr) ASSERT_EXIT(expr, testing::KilledBySignal(SIGABRT), "")
+#endif
+
+#if __has_feature(hwaddress_sanitizer)
+#define ASSERT_FORTIFY_OR_HWASAN(expr) ASSERT_EXIT(expr, testing::KilledBySignal(SIGABRT), "HWAddressSanitizer")
+#else
+#define ASSERT_FORTIFY_OR_HWASAN ASSERT_FORTIFY
 #endif
 
 // Fortify test code needs to run multiple times, so TEST_NAME macro is used to
@@ -294,7 +301,22 @@ TEST_F(DEATHTEST, bzero_fortified2) {
   ASSERT_FORTIFY(bzero(myfoo.b, n));
 }
 
-#endif /* defined(_FORTIFY_SOURCE) && _FORTIFY_SOURCE=2 */
+#endif /* defined(_FORTIFY_SOURCE) && _FORTIFY_SOURCE>=2 */
+
+#if defined(_FORTIFY_SOURCE) && _FORTIFY_SOURCE >= 3
+
+TEST_F(DEATHTEST, dynamic_object_size_malloc) {
+#if __BIONIC__  // glibc doesn't use __builtin_dynamic_object_size
+  // Volatile because we have to fool both the frontend and the optimizer.
+  volatile int i = 32;
+  volatile int j = i + 1;
+  void* mem = malloc(i);
+  ASSERT_FORTIFY(memset(mem, 0, j));
+  free(mem);
+#endif
+}
+
+#endif /* defined(_FORTIFY_SOURCE) && _FORTIFY_SOURCE>=3 */
 
 // multibyte target where we over fill (should fail)
 TEST_F(DEATHTEST, strcpy_fortified) {
@@ -415,8 +437,13 @@ TEST_F(DEATHTEST, sprintf_malloc_fortified) {
 }
 
 TEST_F(DEATHTEST, sprintf2_fortified) {
+  // glibc's fortified implementation of sprintf is smart enough to be able to detect this bug at
+  // compile time, but we want to check if it can also be detected at runtime.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-overflow"
   char buf[5];
   ASSERT_FORTIFY(sprintf(buf, "aaaaa"));
+#pragma clang diagnostic pop
 }
 
 static int vsprintf_helper(const char* fmt, ...) {
@@ -480,7 +507,7 @@ TEST_F(DEATHTEST, memmove_fortified) {
   char buf[20];
   strcpy(buf, "0123456789");
   volatile size_t n = 10;
-  ASSERT_FORTIFY(memmove(buf + 11, buf, n));
+  ASSERT_FORTIFY_OR_HWASAN(android::base::DoNotOptimize(memmove(buf + 11, buf, n)));
 }
 
 TEST_F(DEATHTEST, memcpy_fortified) {
@@ -488,13 +515,13 @@ TEST_F(DEATHTEST, memcpy_fortified) {
   char bufb[10];
   strcpy(bufa, "012345678");
   volatile size_t n = 11;
-  ASSERT_FORTIFY(memcpy(bufb, bufa, n));
+  ASSERT_FORTIFY_OR_HWASAN(android::base::DoNotOptimize(memcpy(bufb, bufa, n)));
 }
 
 TEST_F(DEATHTEST, memset_fortified) {
   char buf[10];
   volatile size_t n = 11;
-  ASSERT_FORTIFY(memset(buf, 0, n));
+  ASSERT_FORTIFY_OR_HWASAN(android::base::DoNotOptimize(memset(buf, 0, n)));
 }
 
 TEST_F(DEATHTEST, stpncpy_fortified) {

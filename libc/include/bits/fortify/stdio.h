@@ -34,9 +34,11 @@ char* _Nullable __fgets_chk(char* _Nonnull, int, FILE* _Nonnull, size_t);
 
 #if __BIONIC_AVAILABILITY_GUARD(24)
 size_t __fread_chk(void* _Nonnull, size_t, size_t, FILE* _Nonnull, size_t) __INTRODUCED_IN(24);
-size_t __fwrite_chk(const void* _Nonnull, size_t, size_t, FILE* _Nonnull, size_t) __INTRODUCED_IN(24);
 #endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
+#if __BIONIC_AVAILABILITY_GUARD(24)
+size_t __fwrite_chk(const void* _Nonnull, size_t, size_t, FILE* _Nonnull, size_t) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
 #if defined(__BIONIC_FORTIFY) && !defined(__BIONIC_NO_STDIO_FORTIFY)
 
@@ -60,7 +62,7 @@ int sprintf(char* __BIONIC_COMPLICATED_NULLNESS dest, const char* _Nonnull forma
     __overloadable
     __enable_if(__bos_unevaluated_lt(__bos(dest), __builtin_strlen(format)),
                 "format string will always overflow destination buffer")
-    __errorattr("format string will always overflow destination buffer");
+    __clang_error_if(1, "format string will always overflow destination buffer");
 
 #if __BIONIC_FORTIFY_RUNTIME_CHECKS_ENABLED
 __BIONIC_FORTIFY_VARIADIC __printflike(2, 3)
@@ -85,14 +87,17 @@ int snprintf(char* const __BIONIC_COMPLICATED_NULLNESS __pass_object_size dest, 
 }
 #endif
 
+/* __builtin_mul_overflow cannot be used in static_assert or constexpr contexts. */
+#define __would_mul_overflow(x, y) ((__SIZE_TYPE__)-1 / (x) < (y))
+
 #define __bos_trivially_ge_mul(bos_val, size, count) \
   __bos_dynamic_check_impl_and(bos_val, >=, (size) * (count), \
-                               !__unsafe_check_mul_overflow(size, count))
+                               !__would_mul_overflow(size, count))
 
 __BIONIC_FORTIFY_INLINE
 size_t fread(void* const _Nonnull __pass_object_size0 buf, size_t size, size_t count, FILE* _Nonnull stream)
         __overloadable
-        __clang_error_if(__unsafe_check_mul_overflow(size, count),
+        __clang_error_if(__would_mul_overflow(size, count),
                          "in call to 'fread', size * count overflows")
         __clang_error_if(__bos_unevaluated_lt(__bos0(buf), size * count),
                          "in call to 'fread', size * count is too large for the given buffer") {
@@ -109,7 +114,7 @@ size_t fread(void* const _Nonnull __pass_object_size0 buf, size_t size, size_t c
 __BIONIC_FORTIFY_INLINE
 size_t fwrite(const void* const _Nonnull __pass_object_size0 buf, size_t size, size_t count, FILE* _Nonnull stream)
         __overloadable
-        __clang_error_if(__unsafe_check_mul_overflow(size, count),
+        __clang_error_if(__would_mul_overflow(size, count),
                          "in call to 'fwrite', size * count overflows")
         __clang_error_if(__bos_unevaluated_lt(__bos0(buf), size * count),
                          "in call to 'fwrite', size * count is too large for the given buffer") {
@@ -122,6 +127,8 @@ size_t fwrite(const void* const _Nonnull __pass_object_size0 buf, size_t size, s
 #endif
     return __call_bypassing_fortify(fwrite)(buf, size, count, stream);
 }
+
+#undef __would_mul_overflow
 #undef __bos_trivially_ge_mul
 
 __BIONIC_FORTIFY_INLINE

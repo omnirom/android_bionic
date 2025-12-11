@@ -121,10 +121,17 @@ __nodiscard void* _Nullable memalign(size_t __alignment, size_t __byte_count) __
 /**
  * [malloc_usable_size(3)](https://man7.org/linux/man-pages/man3/malloc_usable_size.3.html)
  * returns the actual size of the given heap block.
+ *
+ * malloc_usable_size() and _FORTIFY_SOURCE>=3 are incompatible if you are using more of the
+ * allocation than originally requested. However, malloc_usable_size() can be used to keep track
+ * of allocation/deallocation byte counts and this is an exception to the incompatible rule. In this
+ * case, you can define __BIONIC_DISABLE_MALLOC_USABLE_SIZE_FORTIFY_WARNINGS to disable the
+ * compiler error.
  */
 __nodiscard size_t malloc_usable_size(const void* _Nullable __ptr)
-#if defined(_FORTIFY_SOURCE)
-    __clang_error_if(_FORTIFY_SOURCE == 3, "malloc_usable_size() and _FORTIFY_SOURCE=3 are incompatible")
+#if defined(_FORTIFY_SOURCE) && !defined(__BIONIC_DISABLE_MALLOC_USABLE_SIZE_FORTIFY_WARNINGS)
+    __clang_error_if(_FORTIFY_SOURCE >= 3,
+      "malloc_usable_size() and _FORTIFY_SOURCE>=3 are incompatible: see malloc_usable_size() documentation")
 #endif
 ;
 
@@ -199,7 +206,6 @@ struct mallinfo2 mallinfo2(void) __RENAME(mallinfo);
  *
  * Available since API level 23.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(23)
 int malloc_info(int __must_be_zero, FILE* _Nonnull __fp) __INTRODUCED_IN(23);
 #endif /* __BIONIC_AVAILABILITY_GUARD(23) */
@@ -376,7 +382,6 @@ enum HeapTaggingLevel {
  *
  * Available since API level 26.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(26)
 int mallopt(int __option, int __value) __INTRODUCED_IN(26);
 #endif /* __BIONIC_AVAILABILITY_GUARD(26) */
@@ -391,9 +396,9 @@ int mallopt(int __option, int __value) __INTRODUCED_IN(26);
  *
  * See also: [extra documentation](https://android.googlesource.com/platform/bionic/+/main/libc/malloc_hooks/README.md)
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(28)
 extern void* _Nonnull (*volatile _Nonnull __malloc_hook)(size_t __byte_count, const void* _Nonnull __caller) __INTRODUCED_IN(28);
+#endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
 /**
  * [__realloc_hook(3)](https://man7.org/linux/man-pages/man3/__realloc_hook.3.html)
@@ -404,7 +409,9 @@ extern void* _Nonnull (*volatile _Nonnull __malloc_hook)(size_t __byte_count, co
  *
  * See also: [extra documentation](https://android.googlesource.com/platform/bionic/+/main/libc/malloc_hooks/README.md)
  */
+#if __BIONIC_AVAILABILITY_GUARD(28)
 extern void* _Nonnull (*volatile _Nonnull __realloc_hook)(void* _Nullable __ptr, size_t __byte_count, const void* _Nonnull __caller) __INTRODUCED_IN(28);
+#endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
 /**
  * [__free_hook(3)](https://man7.org/linux/man-pages/man3/__free_hook.3.html)
@@ -415,7 +422,9 @@ extern void* _Nonnull (*volatile _Nonnull __realloc_hook)(void* _Nullable __ptr,
  *
  * See also: [extra documentation](https://android.googlesource.com/platform/bionic/+/main/libc/malloc_hooks/README.md)
  */
+#if __BIONIC_AVAILABILITY_GUARD(28)
 extern void (*volatile _Nonnull __free_hook)(void* _Nullable __ptr, const void* _Nonnull __caller) __INTRODUCED_IN(28);
+#endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
 /**
  * [__memalign_hook(3)](https://man7.org/linux/man-pages/man3/__memalign_hook.3.html)
@@ -426,8 +435,8 @@ extern void (*volatile _Nonnull __free_hook)(void* _Nullable __ptr, const void* 
  *
  * See also: [extra documentation](https://android.googlesource.com/platform/bionic/+/main/libc/malloc_hooks/README.md)
  */
+#if __BIONIC_AVAILABILITY_GUARD(28)
 extern void* _Nonnull (*volatile _Nonnull __memalign_hook)(size_t __alignment, size_t __byte_count, const void* _Nonnull __caller) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
-
 
 __END_DECLS

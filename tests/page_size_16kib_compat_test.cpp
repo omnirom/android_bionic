@@ -32,25 +32,79 @@
 
 #include "page_size_compat_helpers.h"
 
+#include <android-base/parsebool.h>
 #include <android-base/properties.h>
+#include <android-base/silent_death_test.h>
+
+using PageSize16KiBCompatTest_DeathTest = SilentDeathTest;
+using ::android::base::ParseBool;
+using ::android::base::ParseBoolResult;
 
 #if defined(IS_ANDROID_DL)
 #include <android/dlext_private.h>
 #endif
+
+static inline std::string CompatMode() {
+  return android::base::GetProperty("bionic.linker.16kb.app_compat.enabled", "false");
+}
+
+static inline bool CompatModeDisabled(const std::string& compat_mode) {
+  return ParseBool(compat_mode) == ParseBoolResult::kFalse;
+}
+
+static inline bool CompatModeEnabled(const std::string& compat_mode) {
+  return ParseBool(compat_mode) == ParseBoolResult::kTrue;
+}
+
+static inline bool CompatModeFatal(const std::string& compat_mode) {
+  return compat_mode == "fatal";
+}
+
+static inline std::string TestLibPath() {
+  return GetTestLibRoot() + "/libtest_elf_max_page_size_4kib.so";
+}
 
 TEST(PageSize16KiBCompatTest, ElfAlignment4KiB_LoadElf) {
   if (getpagesize() != 0x4000) {
     GTEST_SKIP() << "This test is only applicable to 16kB page-size devices";
   }
 
-  bool app_compat_enabled =
-      android::base::GetBoolProperty("bionic.linker.16kb.app_compat.enabled", false);
-  std::string lib = GetTestLibRoot() + "/libtest_elf_max_page_size_4kib.so";
+  std::string compat_mode = CompatMode();
+  if (CompatModeFatal(compat_mode)) {
+    GTEST_SKIP() << "This test is only applicable if dlopen() errors are not fatal";
+  }
+
+  std::string lib = TestLibPath();
   void* handle = nullptr;
 
-  OpenTestLibrary(lib, !app_compat_enabled, &handle);
+  OpenTestLibrary(lib, CompatModeDisabled(compat_mode), &handle);
 
-  if (app_compat_enabled) CallTestFunction(handle);
+  if (CompatModeEnabled(compat_mode)) CallTestFunction(handle);
+}
+
+TEST(PageSize16KiBCompatTest, ElfAlignment4KiB_NonAdajacentWritableSegments_LoadElf) {
+  if (getpagesize() != 0x4000) {
+    GTEST_SKIP() << "This test is only applicable to 16kB page-size devices";
+  }
+
+  std::string lib = GetPrebuiltElfDir() + "/libtest_invalid-rw_rx_rw_load_segments.so";
+  std::string compat_mode = CompatMode();
+  void* handle = nullptr;
+
+  OpenTestLibrary(lib, CompatModeDisabled(compat_mode), &handle);
+}
+
+TEST(PageSize16KiBCompatTest,
+     ElfAlignment4KiB_ExecutalbeSegmentsSeparatedByWritableSegment_LoadElf) {
+  if (getpagesize() != 0x4000) {
+    GTEST_SKIP() << "This test is only applicable to 16kB page-size devices";
+  }
+
+  std::string lib = GetPrebuiltElfDir() + "/libtest_invalid-rw_rx_rw_load_segments.so";
+  std::string compat_mode = CompatMode();
+  void* handle = nullptr;
+
+  OpenTestLibrary(lib, CompatModeDisabled(compat_mode), &handle);
 }
 
 TEST(PageSize16KiBCompatTest, ElfAlignment4KiB_LoadElf_perAppOption) {
@@ -58,11 +112,16 @@ TEST(PageSize16KiBCompatTest, ElfAlignment4KiB_LoadElf_perAppOption) {
     GTEST_SKIP() << "This test is only applicable to 16kB page-size devices";
   }
 
+  std::string compat_mode = CompatMode();
+  if (CompatModeFatal(compat_mode)) {
+    GTEST_SKIP() << "This test is only applicable if dlopen() errors are not fatal";
+  }
+
 #if defined(IS_ANDROID_DL)
   android_set_16kb_appcompat_mode(true);
 #endif
 
-  std::string lib = GetTestLibRoot() + "/libtest_elf_max_page_size_4kib.so";
+  std::string lib = TestLibPath();
   void* handle = nullptr;
 
   OpenTestLibrary(lib, false /*should_fail*/, &handle);
@@ -71,4 +130,25 @@ TEST(PageSize16KiBCompatTest, ElfAlignment4KiB_LoadElf_perAppOption) {
 #if defined(IS_ANDROID_DL)
   android_set_16kb_appcompat_mode(false);
 #endif
+}
+
+static void FatalDlError() {
+  std::string lib = TestLibPath();
+  void* handle = nullptr;
+
+  OpenTestLibrary(lib, true /*should_fail*/, &handle);
+}
+
+TEST(PageSize16KiBCompatTest_DeathTest, AppDlopenErrIsFatal) {
+  if (getpagesize() != 0x4000) {
+    GTEST_SKIP() << "This test is only applicable to 16kB page-size devices";
+  }
+
+  std::string compat_mode = CompatMode();
+  if (!CompatModeFatal(compat_mode)) {
+    GTEST_SKIP() << "This test is only applicable if dlopen() errors are fatal";
+  }
+
+  ASSERT_DEATH(FatalDlError(),
+               ".*program alignment (.*) cannot be smaller than system page size.*");
 }

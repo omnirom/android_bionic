@@ -146,9 +146,11 @@ class pthread_internal_t {
   //    code to handle retries.
   void* shadow_call_stack_guard_region;
 
-  // A pointer to the top of the stack. This lets android_unsafe_frame_pointer_chase determine the
-  // top of the stack quickly, which would otherwise require special logic for the main thread.
+  // Pointers to the top and bottom of the stack. This lets android_unsafe_frame_pointer_chase
+  // determine the top and bottom of the stack quickly, which would otherwise require special logic
+  // for the main thread.
   uintptr_t stack_top;
+  uintptr_t stack_bottom;
 
   // Whether the thread is in the process of terminating (has blocked signals), or has already
   // terminated. This is used by android_run_on_all_threads() to avoid sending a signal to a thread
@@ -195,12 +197,14 @@ struct ThreadMapping {
   char* static_tls;
   char* stack_base;
   char* stack_top;
+  char* libgen_buffers;
 };
 
 __LIBC_HIDDEN__ void __init_tcb(bionic_tcb* tcb, pthread_internal_t* thread);
 __LIBC_HIDDEN__ void __init_tcb_stack_guard(bionic_tcb* tcb);
 __LIBC_HIDDEN__ void __init_tcb_dtv(bionic_tcb* tcb);
 __LIBC_HIDDEN__ void __init_bionic_tls_ptrs(bionic_tcb* tcb, bionic_tls* tls);
+__LIBC_HIDDEN__ void __init_libgen_buffers_ptr(bionic_tls* tls, libgen_buffers* lb);
 __LIBC_HIDDEN__ bionic_tls* __allocate_temp_bionic_tls();
 __LIBC_HIDDEN__ void __free_temp_bionic_tls(bionic_tls* tls);
 __LIBC_HIDDEN__ void __init_additional_stacks(pthread_internal_t*);

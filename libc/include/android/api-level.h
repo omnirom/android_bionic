@@ -162,16 +162,15 @@ __BEGIN_DECLS
 #define __ANDROID_API_V__ 35
 
 /* This file is included in <features.h>, and might be used from .S files. */
-#if !defined(__ASSEMBLY__)
+#if !defined(__ASSEMBLER__)
 
 /**
  * Returns the `targetSdkVersion` of the caller, or `__ANDROID_API_FUTURE__` if
  * there is no known target SDK version (for code not running in the context of
  * an app).
  *
- * The returned values correspond to the named constants in `<android/api-level.h>`,
- * and is equivalent to the AndroidManifest.xml `targetSdkVersion`.
- *
+ * The returned value is the same as the AndroidManifest.xml `targetSdkVersion`.
+ * This is mostly useful for the OS to decide what behavior an app is expecting.
  * See also android_get_device_api_level().
  *
  * Available since API level 24.
@@ -179,7 +178,6 @@ __BEGIN_DECLS
 #if __BIONIC_AVAILABILITY_GUARD(24)
 int android_get_application_target_sdk_version() __INTRODUCED_IN(24);
 #endif /* __BIONIC_AVAILABILITY_GUARD(24) */
-
 
 #if __ANDROID_API__ < 29
 
@@ -192,9 +190,10 @@ int android_get_application_target_sdk_version() __INTRODUCED_IN(24);
 
 /**
  * Returns the API level of the device we're actually running on, or -1 on failure.
- * The returned values correspond to the named constants in `<android/api-level.h>`,
- * and is equivalent to the Java `Build.VERSION.SDK_INT` API.
  *
+ * The returned value is the same as the Java `Build.VERSION.SDK_INT`.
+ * This is mostly useful for an app to work out what version of the OS it's
+ * running on.
  * See also android_get_application_target_sdk_version().
  *
  * Available since API level 29.
@@ -203,7 +202,7 @@ int android_get_device_api_level() __INTRODUCED_IN(29);
 
 #endif
 
-#endif /* defined(__ASSEMBLY__) */
+#endif /* defined(__ASSEMBLER__) */
 
 __END_DECLS
 

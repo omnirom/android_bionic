@@ -240,7 +240,7 @@ static bool is_valid_app_id(id_t, bool) {
 }
 #endif  // if defined(__ANDROID__)
 
-// This provides an iterater for app_ids within the first user's app id's.
+// This provides an iterator for app_ids within the first user's app id's.
 static id_t get_next_app_id(id_t current_id, bool is_group) {
   auto ranges_size = is_group ? arraysize(group_ranges) : arraysize(user_ranges);
   auto ranges = is_group ? group_ranges : user_ranges;
@@ -585,7 +585,7 @@ static int getpasswd_r(bool by_name, const char* name, uid_t uid, struct passwd*
   ErrnoRestorer errno_restorer;
   *result = nullptr;
   char* p =
-      reinterpret_cast<char*>(__BIONIC_ALIGN(reinterpret_cast<uintptr_t>(buf), sizeof(uintptr_t)));
+      reinterpret_cast<char*>(__builtin_align_up(reinterpret_cast<uintptr_t>(buf), sizeof(uintptr_t)));
   if (p + sizeof(passwd_state_t) > buf + buflen) {
     return ERANGE;
   }
@@ -753,7 +753,7 @@ static int getgroup_r(bool by_name, const char* name, gid_t gid, struct group* g
   ErrnoRestorer errno_restorer;
   *result = nullptr;
   char* p = reinterpret_cast<char*>(
-      __BIONIC_ALIGN(reinterpret_cast<uintptr_t>(buf), sizeof(uintptr_t)));
+      __builtin_align_up(reinterpret_cast<uintptr_t>(buf), sizeof(uintptr_t)));
   if (p + sizeof(group_state_t) > buf + buflen) {
     return ERANGE;
   }

@@ -27,15 +27,8 @@
   TypeName() = delete;                                  \
   BIONIC_DISALLOW_COPY_AND_ASSIGN(TypeName)
 
-#define BIONIC_ROUND_UP_POWER_OF_2(value) \
-  ((sizeof(value) == 8) \
-    ? (1UL << (64 - __builtin_clzl(static_cast<unsigned long>(value)))) \
-    : (1UL << (32 - __builtin_clz(static_cast<unsigned int>(value)))))
-
-#if defined(__arm__)
-#define BIONIC_STOP_UNWIND asm volatile(".cfi_undefined r14")
-#elif defined(__aarch64__)
-#define BIONIC_STOP_UNWIND asm volatile(".cfi_undefined x30")
+#if defined(__arm__) || defined(__aarch64__)
+#define BIONIC_STOP_UNWIND asm volatile(".cfi_undefined lr")
 #elif defined(__i386__)
 #define BIONIC_STOP_UNWIND asm volatile(".cfi_undefined \%eip")
 #elif defined(__riscv)
@@ -59,14 +52,6 @@ template <typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];  // NOLINT(readability/casting)
 
 #define arraysize(array) (sizeof(ArraySizeHelper(array)))
-
-// Used to inform clang's -Wimplicit-fallthrough that a fallthrough is intended. There's no way to
-// silence (or enable, apparently) -Wimplicit-fallthrough in C yet.
-#ifdef __cplusplus
-#define __BIONIC_FALLTHROUGH [[clang::fallthrough]]
-#else
-#define __BIONIC_FALLTHROUGH
-#endif
 
 static inline uintptr_t untag_address(uintptr_t p) {
 #if defined(__aarch64__)

@@ -25,6 +25,8 @@
 #include <sys/cdefs.h>
 #include <wchar.h>
 
+#include <limits>
+
 #include "utils.h"
 
 #define NUM_WCHARS(num_bytes) ((num_bytes)/sizeof(wchar_t))
@@ -62,7 +64,26 @@ constexpr bool kLibcSupportsParsingBinaryLiterals = true;
 
 TEST(wchar, sizeof_wchar_t) {
   EXPECT_EQ(4U, sizeof(wchar_t));
+}
+
+TEST(wchar, sizeof_wint_t) {
   EXPECT_EQ(4U, sizeof(wint_t));
+}
+
+TEST(stdint, wchar_sign) {
+#if defined(__arm__) || defined(__aarch64__)
+  EXPECT_FALSE(std::numeric_limits<wchar_t>::is_signed);
+#else
+  EXPECT_TRUE(std::numeric_limits<wchar_t>::is_signed);
+#endif
+}
+
+#if !defined(__WINT_UNSIGNED__)
+#error wint_t is unsigned on Android
+#endif
+
+TEST(stdint, wint_sign) {
+  EXPECT_FALSE(std::numeric_limits<wint_t>::is_signed);
 }
 
 TEST(wchar, mbrlen) {
@@ -1198,18 +1219,6 @@ TEST(wchar, wcscasecmp) {
   ASSERT_TRUE(wcscasecmp(L"hell", L"HELLO") < 0);
 }
 
-TEST(wchar, wcscspn) {
-  ASSERT_EQ(0U, wcscspn(L"hello world", L"abcdefghijklmnopqrstuvwxyz"));
-  ASSERT_EQ(5U, wcscspn(L"hello world", L" "));
-  ASSERT_EQ(11U, wcscspn(L"hello world", L"!"));
-}
-
-TEST(wchar, wcsspn) {
-  ASSERT_EQ(0U, wcsspn(L"hello world", L"!"));
-  ASSERT_EQ(5U, wcsspn(L"hello world", L"abcdefghijklmnopqrstuvwxyz"));
-  ASSERT_EQ(11U, wcsspn(L"hello world", L"abcdefghijklmnopqrstuvwxyz "));
-}
-
 TEST(wchar, wcsdup) {
   wchar_t* s = wcsdup(L"hello");
   ASSERT_STREQ(s, L"hello");
@@ -1260,31 +1269,6 @@ TEST(wchar, wcsnlen) {
   ASSERT_EQ(5U, wcsnlen(L"hello", 666));
 }
 
-TEST(wchar, wcspbrk) {
-  const wchar_t* s = L"hello, world!";
-  ASSERT_EQ(nullptr, wcspbrk(s, L"-"));
-  ASSERT_EQ(s, wcspbrk(s, L"abch"));
-  ASSERT_EQ(s + 2, wcspbrk(s, L"l"));
-  ASSERT_EQ(s + 5, wcspbrk(s, L",. !"));
-}
-
-TEST(wchar, wcstok) {
-  wchar_t s[] = L"this is\ta\nstring";
-  wchar_t* p;
-  ASSERT_EQ(s, wcstok(s, L"\t\n ", &p));
-  ASSERT_STREQ(s, L"this");
-  ASSERT_STREQ(p, L"is\ta\nstring");
-  ASSERT_EQ(s + 5, wcstok(nullptr, L"\t\n ", &p));
-  ASSERT_STREQ(s + 5, L"is");
-  ASSERT_STREQ(p, L"a\nstring");
-  ASSERT_EQ(s + 8, wcstok(nullptr, L"\t\n ", &p));
-  ASSERT_STREQ(s + 8, L"a");
-  ASSERT_STREQ(p, L"string");
-  ASSERT_EQ(s + 10, wcstok(nullptr, L"\t\n ", &p));
-  ASSERT_STREQ(s + 10, L"string");
-  ASSERT_EQ(nullptr, p);
-}
-
 TEST(wchar, wmemchr) {
   const wchar_t* s = L"hello, world!";
   ASSERT_EQ(s, wmemchr(s, L'h', 13));
@@ -1320,4 +1304,171 @@ TEST(wchar, wmemset) {
   ASSERT_EQ(dst[3], wchar_t(0));
   ASSERT_EQ(dst, wmemset(dst, L'y', 0));
   ASSERT_EQ(dst[0], wchar_t(0x12345678));
+}
+
+TEST(wchar, btowc) {
+  // This function only works for single-byte "wide" characters.
+  ASSERT_EQ(wint_t('a'), btowc('a'));
+  // It _truncates_ the input to unsigned char.
+  ASSERT_EQ(wint_t(0x66), btowc(0x666));
+  // And rejects anything with the top bit set.
+  ASSERT_EQ(WEOF, btowc(0xa0));
+}
+
+TEST(wchar, wctob) {
+  // This function only works for single-byte "wide" characters.
+  ASSERT_EQ('a', wctob(L'a'));
+  // And rejects anything that would have the top bit set.
+  ASSERT_EQ(EOF, wctob(0xa0));
+  // There's no truncation here (unlike btowc()),
+  // so this is rejected rather than seen as 0x66 ('f').
+  ASSERT_EQ(EOF, wctob(0x666));
+}
+
+TEST(wchar, wcscoll_smoke) {
+  ASSERT_TRUE(wcscoll(L"aab", L"aac") < 0);
+  ASSERT_TRUE(wcscoll(L"aab", L"aab") == 0);
+  ASSERT_TRUE(wcscoll(L"aac", L"aab") > 0);
+}
+
+TEST(wchar, strcoll_l_smoke) {
+  // bionic just forwards to wcscoll(3).
+  ASSERT_TRUE(wcscoll_l(L"aab", L"aac", LC_GLOBAL_LOCALE) < 0);
+  ASSERT_TRUE(wcscoll_l(L"aab", L"aab", LC_GLOBAL_LOCALE) == 0);
+  ASSERT_TRUE(wcscoll_l(L"aac", L"aab", LC_GLOBAL_LOCALE) > 0);
+}
+
+TEST(wchar, wcsxfrm_smoke) {
+  const wchar_t* src1 = L"aab";
+  wchar_t dst1[16] = {};
+  // Dry run.
+  ASSERT_EQ(wcsxfrm(dst1, src1, 0), 3U);
+  ASSERT_STREQ(dst1, L"");
+  // Really do it.
+  ASSERT_EQ(wcsxfrm(dst1, src1, sizeof(dst1)/sizeof(wchar_t)), 3U);
+
+  const wchar_t* src2 = L"aac";
+  wchar_t dst2[16] = {};
+  // Dry run.
+  ASSERT_EQ(wcsxfrm(dst2, src2, 0), 3U);
+  ASSERT_STREQ(dst2, L"");
+  // Really do it.
+  ASSERT_EQ(wcsxfrm(dst2, src2, sizeof(dst2)/sizeof(wchar_t)), 3U);
+
+  // The "transform" of two different strings should cause different outputs.
+  ASSERT_TRUE(wcscmp(dst1, dst2) < 0);
+}
+
+TEST(wchar, strxfrm_l_smoke) {
+  // bionic just forwards to wcsxfrm(3), so this is a subset of the
+  // strxfrm test.
+  const wchar_t* src1 = L"aab";
+  wchar_t dst1[16] = {};
+  ASSERT_EQ(wcsxfrm_l(dst1, src1, 0, LC_GLOBAL_LOCALE), 3U);
+  ASSERT_STREQ(dst1, L"");
+  ASSERT_EQ(wcsxfrm_l(dst1, src1, sizeof(dst1)/sizeof(wchar_t), LC_GLOBAL_LOCALE), 3U);
+}
+
+TEST(wchar, wcspbrk) {
+  EXPECT_EQ(nullptr, wcspbrk(L"hello", L""));
+  EXPECT_STREQ(L"hello", wcspbrk(L"hello", L"ehl"));
+  EXPECT_STREQ(L"llo", wcspbrk(L"hello", L"l"));
+  EXPECT_STREQ(L" world", wcspbrk(L"hello world", L"\t "));
+}
+
+TEST(wchar, wcsspn) {
+  EXPECT_EQ(0u, wcsspn(L"hello", L""));
+  EXPECT_EQ(4u, wcsspn(L"hello", L"ehl"));
+  EXPECT_EQ(5u, wcsspn(L"hello", L"ehlo"));
+  EXPECT_EQ(5u, wcsspn(L"hello world", L"abcdefghijklmnopqrstuvwxyz"));
+}
+
+TEST(wchar, wcscspn) {
+  EXPECT_EQ(5u, wcscspn(L"hello", L""));
+  EXPECT_EQ(0u, wcscspn(L"hello", L"ehl"));
+  EXPECT_EQ(5u, wcscspn(L"hello", L"abc"));
+  EXPECT_EQ(5u, wcscspn(L"hello world", L" "));
+}
+
+TEST(wchar, wcstok) {
+  wchar_t* p;
+
+  wchar_t empty[] = L"";
+  EXPECT_EQ(nullptr, wcstok(empty, L":", &p));
+
+  wchar_t only_delimiters[] = L":::";
+  EXPECT_EQ(nullptr, wcstok(only_delimiters, L":", &p));
+
+  // wcstok() doesn't return empty strings.
+  wchar_t str[] = L":hello:world:::foo:";
+  EXPECT_STREQ(L"hello", wcstok(str, L":", &p));
+  EXPECT_STREQ(L"world", wcstok(nullptr, L":", &p));
+  EXPECT_STREQ(L"foo", wcstok(nullptr, L":", &p));
+  EXPECT_EQ(nullptr, wcstok(nullptr, L":", &p));
+  // Repeated calls after the first nullptr keep returning nullptr.
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, p);
+    EXPECT_EQ(nullptr, wcstok(nullptr, L":", &p));
+  }
+
+  // Some existing implementations have a separate return path for this.
+  wchar_t non_empty_at_end[] = L"hello:world";
+  EXPECT_STREQ(L"hello", wcstok(non_empty_at_end, L":", &p));
+  EXPECT_STREQ(L"world", wcstok(nullptr, L":", &p));
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, p);
+    EXPECT_EQ(nullptr, wcstok(nullptr, L":", &p));
+  }
+}
+
+TEST(wchar, fwide_byte) {
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("/proc/version", "re"), fclose);
+  // Unknown orientation.
+  EXPECT_EQ(0, fwide(fp.get(), 0));
+  // Getting a byte sets the orientation to bytes.
+  EXPECT_EQ('L', fgetc(fp.get()));
+  EXPECT_TRUE(fwide(fp.get(), 0) < 0);
+  // We don't prevent you from mixing and matching...
+  EXPECT_EQ(wint_t(L'i'), fgetwc(fp.get()));
+  // ...but fwide() remembers what you _first_ did.
+  EXPECT_TRUE(fwide(fp.get(), 0) < 0);
+}
+
+TEST(wchar, fwide_wide_char) {
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("/proc/version", "re"), fclose);
+  // Unknown orientation.
+  EXPECT_EQ(0, fwide(fp.get(), 0));
+  // Getting a wide character sets the orientation to wide.
+  EXPECT_EQ(wint_t(L'L'), fgetwc(fp.get()));
+  EXPECT_TRUE(fwide(fp.get(), 0) > 0);
+  // We don't prevent you from mixing and matching...
+  EXPECT_EQ('i', fgetc(fp.get()));
+  // ...but fwide() remembers what you _first_ did.
+  EXPECT_TRUE(fwide(fp.get(), 0) > 0);
+}
+
+TEST(wchar, fwide_set_byte) {
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("/proc/version", "re"), fclose);
+  // Unknown orientation.
+  EXPECT_EQ(0, fwide(fp.get(), 0));
+  // You can set it to what you want...
+  EXPECT_TRUE(fwide(fp.get(), -123) < 0);
+  // But only once...
+  EXPECT_TRUE(fwide(fp.get(), 123) < 0);
+  // And you can still use the stream however you like.
+  EXPECT_EQ('L', fgetc(fp.get()));
+  EXPECT_EQ(wint_t(L'i'), fgetwc(fp.get()));
+}
+
+TEST(wchar, fwide_set_wide_char) {
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("/proc/version", "re"), fclose);
+  // Unknown orientation.
+  EXPECT_EQ(0, fwide(fp.get(), 0));
+  // You can set it to what you want...
+  EXPECT_TRUE(fwide(fp.get(), 123) > 0);
+  // But only once...
+  EXPECT_TRUE(fwide(fp.get(), -123) > 0);
+  // And you can still use the stream however you like.
+  EXPECT_EQ('L', fgetc(fp.get()));
+  EXPECT_EQ(wint_t(L'i'), fgetwc(fp.get()));
 }

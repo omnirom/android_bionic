@@ -34,11 +34,11 @@
 #include <sys/socket.h>
 #include <linux/if.h>
 
+__BEGIN_DECLS
+
 #ifndef IF_NAMESIZE
 #define IF_NAMESIZE IFNAMSIZ
 #endif
-
-__BEGIN_DECLS
 
 struct if_nameindex {
   unsigned if_index;
@@ -50,9 +50,11 @@ unsigned if_nametoindex(const char* _Nonnull __name);
 
 #if __BIONIC_AVAILABILITY_GUARD(24)
 struct if_nameindex* _Nullable if_nameindex(void) __INTRODUCED_IN(24);
-void if_freenameindex(struct if_nameindex* _Nullable __ptr) __INTRODUCED_IN(24);
 #endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
+#if __BIONIC_AVAILABILITY_GUARD(24)
+void if_freenameindex(struct if_nameindex* _Nullable __ptr) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
 __END_DECLS
 

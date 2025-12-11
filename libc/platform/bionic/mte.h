@@ -128,9 +128,10 @@ inline uintptr_t stack_mte_ringbuffer_size_add_to_pointer(uintptr_t ptr, uintptr
 }
 
 inline void stack_mte_free_ringbuffer(uintptr_t stack_mte_tls) {
-  size_t size = stack_mte_ringbuffer_size_from_pointer(stack_mte_tls);
+  size_t page_aligned_size =
+      __builtin_align_up(stack_mte_ringbuffer_size_from_pointer(stack_mte_tls), page_size());
   void* ptr = reinterpret_cast<void*>(stack_mte_tls & ((1ULL << 56ULL) - 1ULL));
-  munmap(ptr, size);
+  munmap(ptr, page_aligned_size);
 }
 
 inline void* stack_mte_ringbuffer_allocate(size_t n, const char* name) {
@@ -147,8 +148,9 @@ inline void* stack_mte_ringbuffer_allocate(size_t n, const char* name) {
   // bytes left.
   size_t size = stack_mte_ringbuffer_size(n);
   size_t pgsize = page_size();
+  size_t page_aligned_size = __builtin_align_up(size, pgsize);
 
-  size_t alloc_size = __BIONIC_ALIGN(3 * size - pgsize, pgsize);
+  size_t alloc_size = 3 * page_aligned_size - pgsize;
   void* allocation_ptr =
       mmap(nullptr, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (allocation_ptr == MAP_FAILED)
@@ -156,7 +158,7 @@ inline void* stack_mte_ringbuffer_allocate(size_t n, const char* name) {
   uintptr_t allocation = reinterpret_cast<uintptr_t>(allocation_ptr);
 
   size_t alignment = 2 * size;
-  uintptr_t aligned_allocation = __BIONIC_ALIGN(allocation, alignment);
+  uintptr_t aligned_allocation = __builtin_align_up(allocation, alignment);
   if (allocation != aligned_allocation) {
     munmap(reinterpret_cast<void*>(allocation), aligned_allocation - allocation);
   }

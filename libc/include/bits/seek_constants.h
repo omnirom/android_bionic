@@ -35,14 +35,28 @@
 
 #include <sys/cdefs.h>
 
-/** Seek to an absolute offset. */
-#define SEEK_SET 0
-/** Seek relative to the current offset. */
-#define SEEK_CUR 1
-/** Seek relative to the end of the file. */
-#define SEEK_END 2
+__BEGIN_DECLS
 
-#if defined(__USE_GNU)
+/**
+ * Seek to an absolute offset.
+ *
+ * See [lseek(2)](https://man7.org/linux/man-pages/man2/lseek.2.html).
+ */
+#define SEEK_SET 0
+
+/**
+ * Seek relative to the current offset.
+ *
+ * See [lseek(2)](https://man7.org/linux/man-pages/man2/lseek.2.html).
+ */
+#define SEEK_CUR 1
+
+/**
+ * Seek relative to the end of the file.
+ *
+ * See [lseek(2)](https://man7.org/linux/man-pages/man2/lseek.2.html).
+ */
+#define SEEK_END 2
 
 /**
  * Seek to the first data (non-hole) location in the file
@@ -60,4 +74,4 @@
  */
 #define SEEK_HOLE 4
 
-#endif
+__END_DECLS

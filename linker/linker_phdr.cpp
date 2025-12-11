@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/param.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -45,12 +46,16 @@
 #include "linker_soinfo.h"
 #include "linker_utils.h"
 
+#include "private/CFIShadow.h"  // For kLibraryAlignment
 #include "private/bionic_asm_note.h"
-#include "private/CFIShadow.h" // For kLibraryAlignment
+#include "private/bionic_inline_raise.h"
 #include "private/elf_note.h"
 
 #include <android-base/file.h>
+#include <android-base/parsebool.h>
 #include <android-base/properties.h>
+#include <android-base/stringprintf.h>
+#include <android/set_abort_message.h>
 
 static int GetTargetElfMachine() {
 #if defined(__arm__)
@@ -182,13 +187,22 @@ bool ElfReader::Read(const char* name, int fd, off64_t file_offset, off64_t file
     did_read_ = true;
   }
 
-  if (kPageSize == 16*1024 && min_align_ == 4096) {
-    // This prop needs to be read on 16KiB devices for each ELF where min_palign is 4KiB.
-    // It cannot be cached since the developer may toggle app compat on/off.
-    // This check will be removed once app compat is made the default on 16KiB devices.
+  if (kPageSize == 16 * 1024 && min_align_ < kPageSize) {
+    // This prop needs to be read on 16KiB devices for each ELF where min_align_ is less than
+    // 16KiB. It cannot be cached since the developer may toggle app compat on/off. This check will
+    // be removed once app compat is made the default on 16KiB devices.
+    auto compat_prop_val =
+        ::android::base::GetProperty("bionic.linker.16kb.app_compat.enabled", "false");
+
+    using ::android::base::ParseBool;
+    using ::android::base::ParseBoolResult;
+
     should_use_16kib_app_compat_ =
-        ::android::base::GetBoolProperty("bionic.linker.16kb.app_compat.enabled", false) ||
-        get_16kb_appcompat_mode();
+        ParseBool(compat_prop_val) == ParseBoolResult::kTrue || get_16kb_appcompat_mode();
+
+    if (compat_prop_val == "fatal") {
+      dlopen_16kib_err_is_fatal_ = true;
+    }
   }
 
   return did_read_;
@@ -552,7 +566,7 @@ bool ElfReader::CheckProgramHeaderAlignment() {
     // or a positive, integral power of two.
     // The kernel ignores loadable segments with other values,
     // so we just warn rather than reject them.
-    if ((phdr->p_align & (phdr->p_align - 1)) != 0) {
+    if (!powerof2(phdr->p_align)) {
       DL_WARN("\"%s\" has invalid p_align %zx in phdr %zu", name_.c_str(),
                      static_cast<size_t>(phdr->p_align), i);
       continue;
@@ -564,6 +578,8 @@ bool ElfReader::CheckProgramHeaderAlignment() {
       min_align_ = std::min(min_align_, static_cast<size_t>(phdr->p_align));
     }
   }
+
+  if (kPageSize == 16 * 1024) FixMinAlignFor16KiB();
 
   return true;
 }
@@ -583,13 +599,13 @@ static void* ReserveWithAlignmentPadding(size_t size, size_t mapping_align, size
     return mmap_ptr;
   }
 
+#if defined(__LP64__)
   // Minimum alignment of shared library gap. For efficiency, this should match the second level
   // page size of the platform.
-#if defined(__LP64__)
   constexpr size_t kGapAlignment = 2 * 1024 * 1024;
-#endif
   // Maximum gap size, in the units of kGapAlignment.
   constexpr size_t kMaxGapUnits = 32;
+#endif
   // Allocate enough space so that the end of the desired region aligned up is still inside the
   // mapping.
   size_t mmap_size = __builtin_align_up(size, mapping_align) + mapping_align - page_size();
@@ -599,9 +615,9 @@ static void* ReserveWithAlignmentPadding(size_t size, size_t mapping_align, size
     return nullptr;
   }
   size_t gap_size = 0;
+#if defined(__LP64__)
   size_t first_byte = reinterpret_cast<size_t>(__builtin_align_up(mmap_ptr, mapping_align));
   size_t last_byte = reinterpret_cast<size_t>(__builtin_align_down(mmap_ptr + mmap_size, mapping_align) - 1);
-#if defined(__LP64__)
   if (first_byte / kGapAlignment != last_byte / kGapAlignment) {
     // This library crosses a 2MB boundary and will fragment a new huge page.
     // Lets take advantage of that and insert a random number of inaccessible huge pages before that
@@ -979,15 +995,21 @@ bool ElfReader::LoadSegments() {
   // Apps may rely on undefined behavior here on 4 KB systems,
   // which is the norm before this change is introduced
   if (kPageSize >= 16384 && min_align_ < kPageSize && !should_use_16kib_app_compat_) {
-    DL_ERR_AND_LOG("\"%s\" program alignment (%zu) cannot be smaller than system page size (%zu)",
-                   name_.c_str(), min_align_, kPageSize);
+    std::string err_msg = android::base::StringPrintf(
+        "\"%s\" program alignment (%zu) cannot be smaller than system page size (%zu)",
+        name_.c_str(), min_align_, kPageSize);
+
+    DL_ERR_AND_LOG("%s", err_msg.c_str());
+
+    if (dlopen_16kib_err_is_fatal_) {
+      android_set_abort_message(err_msg.c_str());
+      inline_raise(SIGABRT);
+    }
+
     return false;
   }
 
-  if (!Setup16KiBAppCompat()) {
-    DL_ERR("\"%s\" failed to setup 16KiB App Compat", name_.c_str());
-    return false;
-  }
+  if (!Setup16KiBAppCompat()) return false;
 
   for (size_t i = 0; i < phdr_num_; ++i) {
     const ElfW(Phdr)* phdr = &phdr_table_[i];
@@ -1069,7 +1091,7 @@ bool ElfReader::LoadSegments() {
  */
 static int _phdr_table_set_load_prot(const ElfW(Phdr)* phdr_table, size_t phdr_count,
                                      ElfW(Addr) load_bias, int extra_prot_flags,
-                                     bool should_pad_segments, bool should_use_16kib_app_compat) {
+                                     bool should_pad_segments) {
   for (size_t i = 0; i < phdr_count; ++i) {
     const ElfW(Phdr)* phdr = &phdr_table[i];
 
@@ -1080,7 +1102,7 @@ static int _phdr_table_set_load_prot(const ElfW(Phdr)* phdr_table, size_t phdr_c
     ElfW(Addr) p_memsz = phdr->p_memsz;
     ElfW(Addr) p_filesz = phdr->p_filesz;
     _extend_load_segment_vma(phdr_table, phdr_count, i, &p_memsz, &p_filesz, should_pad_segments,
-                             should_use_16kib_app_compat);
+                             /*should_use_16kib_app_compat=*/false);
 
     ElfW(Addr) seg_page_start = page_start(phdr->p_vaddr + load_bias);
     ElfW(Addr) seg_page_end = page_end(phdr->p_vaddr + p_memsz + load_bias);
@@ -1128,14 +1150,18 @@ int phdr_table_protect_segments(const ElfW(Phdr)* phdr_table, size_t phdr_count,
                                 ElfW(Addr) load_bias, bool should_pad_segments,
                                 bool should_use_16kib_app_compat,
                                 const GnuPropertySection* prop __unused) {
+  // Segment permissions are handled separately in 16KiB compatibility mode.
+  if (should_use_16kib_app_compat) {
+    return 0;
+  }
+
   int prot = 0;
 #if defined(__aarch64__)
   if ((prop != nullptr) && prop->IsBTICompatible()) {
     prot |= PROT_BTI;
   }
 #endif
-  return _phdr_table_set_load_prot(phdr_table, phdr_count, load_bias, prot, should_pad_segments,
-                                   should_use_16kib_app_compat);
+  return _phdr_table_set_load_prot(phdr_table, phdr_count, load_bias, prot, should_pad_segments);
 }
 
 static bool segment_needs_memtag_globals_remapping(const ElfW(Phdr) * phdr) {
@@ -1225,35 +1251,42 @@ void name_memtag_globals_segments(const ElfW(Phdr) * phdr_table, size_t phdr_cou
     // VMA_ANON_NAME to be copied into the kernel), we can get rid of the storage here.
     // For now, that is not the case:
     // https://source.android.com/docs/core/architecture/kernel/android-common#compatibility-matrix
-    constexpr int kVmaNameLimit = 80;
     std::string& vma_name = vma_names->emplace_back(kVmaNameLimit, '\0');
-    int full_vma_length =
-        async_safe_format_buffer(vma_name.data(), kVmaNameLimit, "mt:%s+%" PRIxPTR, soname,
-                                 page_start(phdr->p_vaddr)) +
-        /* include the null terminator */ 1;
-    // There's an upper limit of 80 characters, including the null terminator, in the anonymous VMA
-    // name. If we run over that limit, we end up truncating the segment offset and parts of the
-    // DSO's name, starting on the right hand side of the basename. Because the basename is the most
-    // important thing, chop off the soname from the left hand side first.
-    //
-    // Example (with '#' as the null terminator):
-    //   - "mt:/data/nativetest64/bionic-unit-tests/bionic-loader-test-libs/libdlext_test.so+e000#"
-    //     is a `full_vma_length` == 86.
-    //
-    // We need to left-truncate (86 - 80) 6 characters from the soname, plus the
-    // `vma_truncation_prefix`, so 9 characters total.
-    if (full_vma_length > kVmaNameLimit) {
-      const char vma_truncation_prefix[] = "...";
-      int soname_truncated_bytes =
-          full_vma_length - kVmaNameLimit + sizeof(vma_truncation_prefix) - 1;
-      async_safe_format_buffer(vma_name.data(), kVmaNameLimit, "mt:%s%s+%" PRIxPTR,
-                               vma_truncation_prefix, soname + soname_truncated_bytes,
-                               page_start(phdr->p_vaddr));
-    }
+    // 18 characters are enough for the '+' prefix, 16 hex digits, and the null terminator.
+    char suffix_buffer[18] = {};
+    async_safe_format_buffer(suffix_buffer, sizeof(suffix_buffer), "+%" PRIxPTR,
+                             page_start(phdr->p_vaddr));
+    format_left_truncated_vma_anon_name(vma_name.data(), vma_name.size(), "mt:", soname,
+                                        suffix_buffer);
     if (prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, reinterpret_cast<void*>(seg_page_start),
               seg_page_aligned_size, vma_name.data()) != 0) {
       DL_WARN("Failed to rename memtag global segment: %m");
     }
+  }
+}
+
+/* There's an upper limit of 80 characters, including the null terminator, on the anonymous VMA
+ * name. This limit is easily exceeded when setting the mapping's name to a path. To stay within the
+ * character limit, we must truncate the name to fit into 80 bytes. Since the most important part of
+ * a path is the basename, we start truncating from the left side.
+ *
+ * Example (with prefix = "mt:", suffix = "+e000", and '#' as the null terminator):
+ *   - "mt:/data/nativetest64/bionic-unit-tests/bionic-loader-test-libs/libdlext_test.so+e000#"
+ * This mapping name would have a length of 86, so we left-truncate (86 - 80 + 3) 9 characters from
+ * the path in order to add "..." to the front and fit into the 80 character limit:
+ *   - "mt:...ivetest64/bionic-unit-tests/bionic-loader-test-libs/libdlext_test.so+e000#"
+ */
+void format_left_truncated_vma_anon_name(char* buffer, size_t buffer_size, const char* prefix,
+                                         const char* name, const char* suffix) {
+  size_t full_vma_name_length =
+      async_safe_format_buffer(buffer, buffer_size, "%s%s%s", prefix, name, suffix) +
+      /* null terminator */ 1;
+  if (full_vma_name_length > buffer_size) {
+    const char* truncation_prefix = "...";
+    size_t truncation_prefix_length = strlen(truncation_prefix);
+    size_t truncated_bytes = full_vma_name_length - buffer_size + truncation_prefix_length;
+    async_safe_format_buffer(buffer, buffer_size, "%s%s%s%s", prefix, truncation_prefix,
+                             name + truncated_bytes, suffix);
   }
 }
 
@@ -1278,15 +1311,21 @@ void name_memtag_globals_segments(const ElfW(Phdr) * phdr_table, size_t phdr_cou
 int phdr_table_unprotect_segments(const ElfW(Phdr)* phdr_table, size_t phdr_count,
                                   ElfW(Addr) load_bias, bool should_pad_segments,
                                   bool should_use_16kib_app_compat) {
+  // Segment permissions are handled separately in 16KiB compatibility mode. Also in this case
+  // binaries are mapped entirely RW until relro protection is applied, so they don't need to be
+  // unprotected before performing dynamic relocations.
+  if (should_use_16kib_app_compat) {
+    return 0;
+  }
+
   return _phdr_table_set_load_prot(phdr_table, phdr_count, load_bias, PROT_WRITE,
-                                   should_pad_segments, should_use_16kib_app_compat);
+                                   should_pad_segments);
 }
 
 static inline void _extend_gnu_relro_prot_end(const ElfW(Phdr)* relro_phdr,
                                               const ElfW(Phdr)* phdr_table, size_t phdr_count,
                                               ElfW(Addr) load_bias, ElfW(Addr)* seg_page_end,
-                                              bool should_pad_segments,
-                                              bool should_use_16kib_app_compat) {
+                                              bool should_pad_segments) {
   // Find the index and phdr of the LOAD containing the GNU_RELRO segment
   for (size_t index = 0; index < phdr_count; ++index) {
     const ElfW(Phdr)* phdr = &phdr_table[index];
@@ -1334,7 +1373,7 @@ static inline void _extend_gnu_relro_prot_end(const ElfW(Phdr)* relro_phdr,
       // mprotect will only RO protect a part of the extended RW LOAD segment, which
       // will leave an extra split RW VMA (the gap).
       _extend_load_segment_vma(phdr_table, phdr_count, index, &p_memsz, &p_filesz,
-                               should_pad_segments, should_use_16kib_app_compat);
+                               should_pad_segments, /*should_use_16kib_app_compat=*/false);
 
       *seg_page_end = page_end(phdr->p_vaddr + p_memsz + load_bias);
       return;
@@ -1347,8 +1386,7 @@ static inline void _extend_gnu_relro_prot_end(const ElfW(Phdr)* relro_phdr,
  */
 static int _phdr_table_set_gnu_relro_prot(const ElfW(Phdr)* phdr_table, size_t phdr_count,
                                           ElfW(Addr) load_bias, int prot_flags,
-                                          bool should_pad_segments,
-                                          bool should_use_16kib_app_compat) {
+                                          bool should_pad_segments) {
   const ElfW(Phdr)* phdr = phdr_table;
   const ElfW(Phdr)* phdr_limit = phdr + phdr_count;
 
@@ -1376,7 +1414,7 @@ static int _phdr_table_set_gnu_relro_prot(const ElfW(Phdr)* phdr_table, size_t p
     ElfW(Addr) seg_page_start = page_start(phdr->p_vaddr) + load_bias;
     ElfW(Addr) seg_page_end = page_end(phdr->p_vaddr + phdr->p_memsz) + load_bias;
     _extend_gnu_relro_prot_end(phdr, phdr_table, phdr_count, load_bias, &seg_page_end,
-                               should_pad_segments, should_use_16kib_app_compat);
+                               should_pad_segments);
 
     int ret = mprotect(reinterpret_cast<void*>(seg_page_start),
                        seg_page_end - seg_page_start,
@@ -1407,24 +1445,9 @@ static int _phdr_table_set_gnu_relro_prot(const ElfW(Phdr)* phdr_table, size_t p
  *   0 on success, -1 on failure (error code in errno).
  */
 int phdr_table_protect_gnu_relro(const ElfW(Phdr)* phdr_table, size_t phdr_count,
-                                 ElfW(Addr) load_bias, bool should_pad_segments,
-                                 bool should_use_16kib_app_compat) {
+                                 ElfW(Addr) load_bias, bool should_pad_segments) {
   return _phdr_table_set_gnu_relro_prot(phdr_table, phdr_count, load_bias, PROT_READ,
-                                        should_pad_segments, should_use_16kib_app_compat);
-}
-
-/*
- * Apply RX protection to the compat relro region of the ELF being loaded in
- * 16KiB compat mode.
- *
- * Input:
- *   start  -> start address of the compat relro region.
- *   size   -> size of the compat relro region in bytes.
- * Return:
- *   0 on success, -1 on failure (error code in errno).
- */
-int phdr_table_protect_gnu_relro_16kib_compat(ElfW(Addr) start, ElfW(Addr) size) {
-  return mprotect(reinterpret_cast<void*>(start), size, PROT_READ | PROT_EXEC);
+                                        should_pad_segments);
 }
 
 /* Serialize the GNU relro segments to the given file descriptor. This can be
@@ -1686,7 +1709,7 @@ bool ElfReader::FindPhdr() {
 // It is not considered an error if such section is missing.
 bool ElfReader::FindGnuPropertySection() {
 #if defined(__aarch64__)
-  note_gnu_property_ = GnuPropertySection(phdr_table_, phdr_num_, load_start(), name_.c_str());
+  note_gnu_property_ = GnuPropertySection(phdr_table_, phdr_num_, load_bias_, name_.c_str());
 #endif
   return true;
 }

@@ -4,8 +4,8 @@
  * See https://android.googlesource.com/platform/bionic/+/master/libc/kernel/
  * for more information.
  */
-#ifndef __LINUX_FIB_RULES_H
-#define __LINUX_FIB_RULES_H
+#ifndef _UAPI__LINUX_FIB_RULES_H
+#define _UAPI__LINUX_FIB_RULES_H
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 #define FIB_RULE_PERMANENT 0x00000001
@@ -62,6 +62,11 @@ enum {
   FRA_SPORT_RANGE,
   FRA_DPORT_RANGE,
   FRA_DSCP,
+  FRA_FLOWLABEL,
+  FRA_FLOWLABEL_MASK,
+  FRA_SPORT_MASK,
+  FRA_DPORT_MASK,
+  FRA_DSCP_MASK,
   __FRA_MAX
 };
 #define FRA_MAX (__FRA_MAX - 1)

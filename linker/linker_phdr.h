@@ -47,6 +47,7 @@
                                       MAYBE_MAP_FLAG((x), PF_W, PROT_WRITE))
 
 static constexpr size_t kCompatPageSize = 0x1000;
+static constexpr size_t kVmaNameLimit = 80;
 
 class ElfReader {
  public:
@@ -69,8 +70,10 @@ class ElfReader {
   ElfW(Addr) entry_point() const { return header_.e_entry + load_bias_; }
   bool should_pad_segments() const { return should_pad_segments_; }
   bool should_use_16kib_app_compat() const { return should_use_16kib_app_compat_; }
-  ElfW(Addr) compat_relro_start() const { return compat_relro_start_; }
-  ElfW(Addr) compat_relro_size() const { return compat_relro_size_; }
+  bool should_16kib_app_compat_use_rwx() const { return should_16kib_app_compat_use_rwx_; }
+  ElfW(Addr) compat_code_start() const { return compat_code_start_; }
+  ElfW(Addr) compat_code_size() const { return compat_code_size_; }
+  const GnuPropertySection* note_gnu_property() const { return &note_gnu_property_; }
 
  private:
   [[nodiscard]] bool ReadElfHeader();
@@ -87,8 +90,12 @@ class ElfReader {
   void DropPaddingPages(const ElfW(Phdr)* phdr, uint64_t seg_file_end);
   [[nodiscard]] bool MapBssSection(const ElfW(Phdr)* phdr, ElfW(Addr) seg_page_end,
                                    ElfW(Addr) seg_file_end);
-  [[nodiscard]] bool IsEligibleFor16KiBAppCompat(ElfW(Addr)* vaddr);
+  [[nodiscard]] bool IsEligibleForRXRWAppCompat(ElfW(Addr)* vaddr);
   [[nodiscard]] bool HasAtMostOneRelroSegment(const ElfW(Phdr)** relro_phdr);
+  void FixMinAlignFor16KiB();
+  void LabelCompatVma();
+  void SetupRXRWAppCompat(ElfW(Addr) rx_rw_boundary);
+  void SetupRWXAppCompat();
   [[nodiscard]] bool Setup16KiBAppCompat();
   [[nodiscard]] bool LoadSegments();
   [[nodiscard]] bool FindPhdr();
@@ -147,9 +154,17 @@ class ElfReader {
   // Use app compat mode when loading 4KiB max-page-size ELFs on 16KiB page-size devices?
   bool should_use_16kib_app_compat_ = false;
 
-  // RELRO region for 16KiB compat loading
-  ElfW(Addr) compat_relro_start_ = 0;
-  ElfW(Addr) compat_relro_size_ = 0;
+  // Map ELF segments RWX in app compat mode?
+  bool should_16kib_app_compat_use_rwx_ = false;
+
+  // Should fail hard on 16KiB related dlopen() errors?
+  bool dlopen_16kib_err_is_fatal_ = false;
+
+  // Region that needs execute permission for 16KiB compat loading.
+  // RX|RW compat mode: Contains code and GNU RELRO sections.
+  // RWX compat mode: Contains the whole ELF.
+  ElfW(Addr) compat_code_start_ = 0;
+  ElfW(Addr) compat_code_size_ = 0;
 
   // Only used by AArch64 at the moment.
   GnuPropertySection note_gnu_property_ __unused;
@@ -168,10 +183,11 @@ int phdr_table_unprotect_segments(const ElfW(Phdr)* phdr_table, size_t phdr_coun
                                   bool should_use_16kib_app_compat);
 
 int phdr_table_protect_gnu_relro(const ElfW(Phdr)* phdr_table, size_t phdr_count,
-                                 ElfW(Addr) load_bias, bool should_pad_segments,
-                                 bool should_use_16kib_app_compat);
+                                 ElfW(Addr) load_bias, bool should_pad_segments);
 
-int phdr_table_protect_gnu_relro_16kib_compat(ElfW(Addr) start, ElfW(Addr) size);
+int phdr_table_protect_16kib_app_compat_code(ElfW(Addr) start, ElfW(Addr) size,
+                                             bool should_16kib_app_compat_use_rwx,
+                                             const GnuPropertySection* note_gnu_property = nullptr);
 
 int phdr_table_serialize_gnu_relro(const ElfW(Phdr)* phdr_table, size_t phdr_count,
                                    ElfW(Addr) load_bias, int fd, size_t* file_offset);
@@ -202,3 +218,6 @@ void protect_memtag_globals_ro_segments(const ElfW(Phdr) * phdr_table, size_t ph
 void name_memtag_globals_segments(const ElfW(Phdr) * phdr_table, size_t phdr_count,
                                   ElfW(Addr) load_bias, const char* soname,
                                   std::list<std::string>* vma_names);
+
+void format_left_truncated_vma_anon_name(char* buffer, size_t buffer_size, const char* prefix,
+                                         const char* name, const char* suffix);

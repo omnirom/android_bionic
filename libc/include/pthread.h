@@ -314,25 +314,46 @@ int pthread_rwlock_wrlock(pthread_rwlock_t* _Nonnull __rwlock);
 
 #if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrierattr_init(pthread_barrierattr_t* _Nonnull __attr) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrierattr_destroy(pthread_barrierattr_t* _Nonnull __attr) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrierattr_getpshared(const pthread_barrierattr_t* _Nonnull __attr, int* _Nonnull __shared) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrierattr_setpshared(pthread_barrierattr_t* _Nonnull __attr, int __shared) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrier_init(pthread_barrier_t* _Nonnull __barrier, const pthread_barrierattr_t* _Nullable __attr, unsigned __count) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrier_destroy(pthread_barrier_t* _Nonnull __barrier) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_barrier_wait(pthread_barrier_t* _Nonnull __barrier) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_spin_destroy(pthread_spinlock_t* _Nonnull __spinlock) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_spin_init(pthread_spinlock_t* _Nonnull __spinlock, int __shared) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_spin_lock(pthread_spinlock_t* _Nonnull __spinlock) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_spin_trylock(pthread_spinlock_t* _Nonnull __spinlock) __INTRODUCED_IN(24);
+#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
+#if __BIONIC_AVAILABILITY_GUARD(24)
 int pthread_spin_unlock(pthread_spinlock_t* _Nonnull __spinlock) __INTRODUCED_IN(24);
 #endif /* __BIONIC_AVAILABILITY_GUARD(24) */
 
 
 pthread_t pthread_self(void) __attribute_const__;
 
-#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(26)
 /**
  * [pthread_getname_np(3)](https://man7.org/linux/man-pages/man3/pthread_getname_np.3.html)
  * gets the name of the given thread.
@@ -340,8 +361,9 @@ pthread_t pthread_self(void) __attribute_const__;
  *
  * Returns 0 on success and returns an error number on failure.
  *
- * Available since API level 26.
+ * Available since API level 26 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(26)
 int pthread_getname_np(pthread_t __pthread, char* _Nonnull __buf, size_t __n) __INTRODUCED_IN(26);
 #endif
 
@@ -365,7 +387,7 @@ int pthread_setname_np(pthread_t __pthread, const char* _Nonnull __name);
  *
  * Returns 0 on success and returns an error number on failure.
  *
- * Available since API level 36.
+ * Available since API level 36 when compiling with `_GNU_SOURCE`.
  * See sched_getaffinity() and pthread_gettid_np() for greater portability.
  */
 #if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(36)
@@ -378,7 +400,7 @@ int pthread_getaffinity_np(pthread_t __pthread, size_t __cpu_set_size, cpu_set_t
  *
  * Returns 0 on success and returns an error number on failure.
  *
- * Available since API level 36.
+ * Available since API level 36 when compiling with `_GNU_SOURCE`.
  * See sched_getaffinity() and pthread_gettid_np() for greater portability.
  */
 #if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(36)

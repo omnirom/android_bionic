@@ -1615,6 +1615,11 @@ TEST(STRING_TEST, strcasestr_smoke) {
   ASSERT_EQ(haystack + 4, strcasestr(haystack, "Da"));
 }
 
+TEST(STRING_TEST, strcasestr_empty) {
+  const char* empty_haystack = "";
+  ASSERT_EQ(empty_haystack, strcasestr(empty_haystack, ""));
+}
+
 TEST(STRING_TEST, strcoll_smoke) {
   ASSERT_TRUE(strcoll("aab", "aac") < 0);
   ASSERT_TRUE(strcoll("aab", "aab") == 0);
@@ -1695,4 +1700,141 @@ TEST(STRING_TEST, strerrorname_np) {
 #else
   GTEST_SKIP() << "strerrorname_np not available";
 #endif
+}
+
+TEST(STRING_TEST, strpbrk) {
+  EXPECT_EQ(nullptr, strpbrk("hello", ""));
+  EXPECT_STREQ("hello", strpbrk("hello", "ehl"));
+  EXPECT_STREQ("llo", strpbrk("hello", "l"));
+  EXPECT_STREQ(" world", strpbrk("hello world", "\t "));
+
+  // Check that the implementation copes with top bit set characters.
+  EXPECT_STREQ("\x80world", strpbrk("hello\x80world", "\x80 "));
+}
+
+TEST(STRING_TEST, strspn) {
+  EXPECT_EQ(0u, strspn("hello", ""));
+  EXPECT_EQ(4u, strspn("hello", "ehl"));
+  EXPECT_EQ(5u, strspn("hello", "ehlo"));
+  EXPECT_EQ(5u, strspn("hello world", "abcdefghijklmnopqrstuvwxyz"));
+
+  // Check that the implementation copes with top bit set characters.
+  EXPECT_EQ(6u, strspn("hello\x80world", "helo\x80rld"));
+}
+
+TEST(STRING_TEST, strcspn) {
+  EXPECT_EQ(5u, strcspn("hello", ""));
+  EXPECT_EQ(0u, strcspn("hello", "ehl"));
+  EXPECT_EQ(5u, strcspn("hello", "abc"));
+  EXPECT_EQ(5u, strcspn("hello world", " "));
+
+  // Check that the implementation copes with top bit set characters.
+  EXPECT_EQ(5u, strcspn("hello\x80world", "\x80"));
+}
+
+TEST(STRING_TEST, strsep) {
+  char* p = nullptr;
+  EXPECT_EQ(nullptr, strsep(&p, ":"));
+
+  // Unlike strtok(), strsep() _does_ return empty strings.
+  char str[] = ":hello:world:::foo:";
+  p = str;
+  EXPECT_STREQ("", strsep(&p, ":"));
+  EXPECT_STREQ("hello", strsep(&p, ":"));
+  EXPECT_STREQ("world", strsep(&p, ":"));
+  EXPECT_STREQ("", strsep(&p, ":"));
+  EXPECT_STREQ("", strsep(&p, ":"));
+  EXPECT_STREQ("foo", strsep(&p, ":"));
+  EXPECT_STREQ("", strsep(&p, ":"));
+  EXPECT_EQ(nullptr, strsep(&p, ":"));
+  // Repeated calls after the first nullptr keep returning nullptr.
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, strsep(&p, ":"));
+  }
+
+  // Some existing implementations have a separate return path for this.
+  char non_empty_at_end[] = "hello:world";
+  p = non_empty_at_end;
+  EXPECT_STREQ("hello", strsep(&p, ":"));
+  EXPECT_STREQ("world", strsep(&p, ":"));
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, strsep(&p, ":"));
+  }
+
+  // Check that the implementation copes with top bit set characters.
+  char top_bit_set_str[] = "hello\x80world";
+  p = top_bit_set_str;
+  EXPECT_STREQ("hello", strsep(&p, "\x80"));
+  EXPECT_STREQ("world", strsep(&p, "\x80"));
+  EXPECT_EQ(nullptr, strsep(&p, "\x80"));
+}
+
+TEST(STRING_TEST, strtok) {
+  char empty[] = "";
+  EXPECT_EQ(nullptr, strtok(empty, ":"));
+
+  char only_delimiters[] = ":::";
+  EXPECT_EQ(nullptr, strtok(only_delimiters, ":"));
+
+  // Unlike strsep(), strtok() doesn't return empty strings.
+  char str[] = ":hello:world:::foo:";
+  EXPECT_STREQ("hello", strtok(str, ":"));
+  EXPECT_STREQ("world", strtok(nullptr, ":"));
+  EXPECT_STREQ("foo", strtok(nullptr, ":"));
+  EXPECT_EQ(nullptr, strtok(nullptr, ":"));
+  // Repeated calls after the first nullptr keep returning nullptr.
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, strtok(nullptr, ":"));
+  }
+
+  // Some existing implementations have a separate return path for this.
+  char non_empty_at_end[] = "hello:world";
+  EXPECT_STREQ("hello", strtok(non_empty_at_end, ":"));
+  EXPECT_STREQ("world", strtok(nullptr, ":"));
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, strtok(nullptr, ":"));
+  }
+
+  // Check that the implementation copes with top bit set characters.
+  char top_bit_set_str[] = "hello\x80world";
+  EXPECT_STREQ("hello", strtok(top_bit_set_str, "\x80"));
+  EXPECT_STREQ("world", strtok(nullptr, "\x80"));
+  EXPECT_EQ(nullptr, strtok(nullptr, "\x80"));
+}
+
+TEST(STRING_TEST, strtok_r) {
+  char* p;
+
+  char empty[] = "";
+  EXPECT_EQ(nullptr, strtok_r(empty, ":", &p));
+
+  char only_delimiters[] = ":::";
+  EXPECT_EQ(nullptr, strtok_r(only_delimiters, ":", &p));
+
+  // Unlike strsep(), strtok_r() doesn't return empty strings.
+  char str[] = ":hello:world:::foo:";
+  EXPECT_STREQ("hello", strtok_r(str, ":", &p));
+  EXPECT_STREQ("world", strtok_r(nullptr, ":", &p));
+  EXPECT_STREQ("foo", strtok_r(nullptr, ":", &p));
+  EXPECT_EQ(nullptr, strtok_r(nullptr, ":", &p));
+  // Repeated calls after the first nullptr keep returning nullptr.
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, p);
+    EXPECT_EQ(nullptr, strtok_r(nullptr, ":", &p));
+  }
+
+  // Some existing implementations have a separate return path for this.
+  char non_empty_at_end[] = "hello:world";
+  EXPECT_STREQ("hello", strtok_r(non_empty_at_end, ":", &p));
+  EXPECT_STREQ("world", strtok_r(nullptr, ":", &p));
+  for (size_t i = 0; i < 1024; ++i) {
+    EXPECT_EQ(nullptr, p);
+    EXPECT_EQ(nullptr, strtok_r(nullptr, ":", &p));
+  }
+
+  // Check that the implementation copes with top bit set characters.
+  char top_bit_set_str[] = "hello\x80world";
+  EXPECT_STREQ("hello", strtok_r(top_bit_set_str, "\x80", &p));
+  EXPECT_STREQ("world", strtok_r(nullptr, "\x80", &p));
+  EXPECT_EQ(nullptr, strtok_r(nullptr, "\x80", &p));
 }

@@ -16,6 +16,8 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
+__BEGIN_DECLS
+
 /** See hsearch()/hsearch_r(). */
 typedef enum {
   FIND,
@@ -54,14 +56,12 @@ typedef enum {
   leaf
 } VISIT;
 
-#if defined(__USE_BSD) || defined(__USE_GNU)
 /** The hash table type for hcreate_r()/hdestroy_r()/hsearch_r(). */
+#if defined(__USE_BSD) || defined(__USE_GNU)
 struct hsearch_data {
-  struct __hsearch* _Nullable __hsearch;
+  void* _Nullable __opaque;
 };
 #endif
-
-__BEGIN_DECLS
 
 /**
  * [insque(3)](https://man7.org/linux/man-pages/man3/insque.3.html) inserts
@@ -85,9 +85,9 @@ void remque(void* _Nonnull __element);
  *
  * Available since API level 28.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(28)
 int hcreate(size_t __n) __INTRODUCED_IN(28);
+#endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
 /**
  * [hdestroy(3)](https://man7.org/linux/man-pages/man3/hdestroy.3.html) destroys
@@ -97,7 +97,9 @@ int hcreate(size_t __n) __INTRODUCED_IN(28);
  *
  * Available since API level 28.
  */
+#if __BIONIC_AVAILABILITY_GUARD(28)
 void hdestroy(void) __INTRODUCED_IN(28);
+#endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
 /**
  * [hsearch(3)](https://man7.org/linux/man-pages/man3/hsearch.3.html) finds or
@@ -110,11 +112,9 @@ void hdestroy(void) __INTRODUCED_IN(28);
  *
  * Available since API level 28.
  */
+#if __BIONIC_AVAILABILITY_GUARD(28)
 ENTRY* _Nullable hsearch(ENTRY __entry, ACTION __action) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
-
-
-#if defined(__USE_BSD) || defined(__USE_GNU)
 
 /**
  * [hcreate_r(3)](https://man7.org/linux/man-pages/man3/hcreate_r.3.html)
@@ -122,19 +122,21 @@ ENTRY* _Nullable hsearch(ENTRY __entry, ACTION __action) __INTRODUCED_IN(28);
  *
  * Returns *non-zero* on success and returns 0 and sets `errno` on failure.
  *
- * Available since API level 28.
+ * Available since API level 28 when compiling with `_BSD_SOURCE` or `_GNU_SOURCE`.
  */
-
-#if __BIONIC_AVAILABILITY_GUARD(28)
+#if (defined(__USE_BSD) || defined(__USE_GNU)) && __BIONIC_AVAILABILITY_GUARD(28)
 int hcreate_r(size_t __n, struct hsearch_data* _Nonnull __table) __INTRODUCED_IN(28);
+#endif
 
 /**
  * [hdestroy_r(3)](https://man7.org/linux/man-pages/man3/hdestroy_r.3.html) destroys
  * the hash table `__table`.
  *
- * Available since API level 28.
+ * Available since API level 28 when compiling with `_BSD_SOURCE` or `_GNU_SOURCE`.
  */
+#if (defined(__USE_BSD) || defined(__USE_GNU)) && __BIONIC_AVAILABILITY_GUARD(28)
 void hdestroy_r(struct hsearch_data* _Nonnull __table) __INTRODUCED_IN(28);
+#endif
 
 /**
  * [hsearch_r(3)](https://man7.org/linux/man-pages/man3/hsearch_r.3.html) finds or
@@ -143,12 +145,10 @@ void hdestroy_r(struct hsearch_data* _Nonnull __table) __INTRODUCED_IN(28);
  * Returns *non-zero* on success and returns 0 and sets `errno` on failure.
  * A pointer to the entry is returned in `*__result`.
  *
- * Available since API level 28.
+ * Available since API level 28 when compiling with `_BSD_SOURCE` or `_GNU_SOURCE`.
  */
+#if (defined(__USE_BSD) || defined(__USE_GNU)) && __BIONIC_AVAILABILITY_GUARD(28)
 int hsearch_r(ENTRY __entry, ACTION __action, ENTRY* _Nullable * _Nonnull __result, struct hsearch_data* _Nonnull __table) __INTRODUCED_IN(28);
-#endif /* __BIONIC_AVAILABILITY_GUARD(28) */
-
-
 #endif
 
 /**

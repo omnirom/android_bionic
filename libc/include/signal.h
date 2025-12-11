@@ -65,7 +65,6 @@ int sigaction(int __signal, const struct sigaction* _Nullable __new_action, stru
 int sigaction64(int __signal, const struct sigaction64* _Nullable __new_action, struct sigaction64* _Nullable __old_action) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
-
 int siginterrupt(int __signal, int __flag);
 
 sighandler_t _Nonnull signal(int __signal, sighandler_t _Nullable __handler);
@@ -124,23 +123,32 @@ int sigwait(const sigset_t* _Nonnull __set, int* _Nonnull __signal);
 int sigwait64(const sigset64_t* _Nonnull __set, int* _Nonnull __signal) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
-
-
 #if __BIONIC_AVAILABILITY_GUARD(26)
 int sighold(int __signal)
   __attribute__((__deprecated__("use sigprocmask() or pthread_sigmask() instead")))
   __INTRODUCED_IN(26);
+#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
+
+#if __BIONIC_AVAILABILITY_GUARD(26)
 int sigignore(int __signal)
-  __attribute__((__deprecated__("use sigaction() instead"))) __INTRODUCED_IN(26);
-int sigpause(int __signal)
-  __attribute__((__deprecated__("use sigsuspend() instead"))) __INTRODUCED_IN(26);
-int sigrelse(int __signal)
-  __attribute__((__deprecated__("use sigprocmask() or pthread_sigmask() instead")))
-  __INTRODUCED_IN(26);
-sighandler_t _Nonnull sigset(int __signal, sighandler_t _Nullable __handler)
   __attribute__((__deprecated__("use sigaction() instead"))) __INTRODUCED_IN(26);
 #endif /* __BIONIC_AVAILABILITY_GUARD(26) */
 
+#if __BIONIC_AVAILABILITY_GUARD(26)
+int sigpause(int __signal)
+  __attribute__((__deprecated__("use sigsuspend() instead"))) __INTRODUCED_IN(26);
+#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
+
+#if __BIONIC_AVAILABILITY_GUARD(26)
+int sigrelse(int __signal)
+  __attribute__((__deprecated__("use sigprocmask() or pthread_sigmask() instead")))
+  __INTRODUCED_IN(26);
+#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
+
+#if __BIONIC_AVAILABILITY_GUARD(26)
+sighandler_t _Nonnull sigset(int __signal, sighandler_t _Nullable __handler)
+  __attribute__((__deprecated__("use sigaction() instead"))) __INTRODUCED_IN(26);
+#endif /* __BIONIC_AVAILABILITY_GUARD(26) */
 
 int raise(int __signal);
 int kill(pid_t __pid, int __signal);
@@ -153,12 +161,9 @@ void psiginfo(const siginfo_t* _Nonnull __info, const char* _Nullable __msg);
 void psignal(int __signal, const char* _Nullable __msg);
 
 int pthread_kill(pthread_t __pthread, int __signal);
-#if defined(__USE_GNU)
 
-#if __BIONIC_AVAILABILITY_GUARD(29)
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(29)
 int pthread_sigqueue(pthread_t __pthread, int __signal, const union sigval __value) __INTRODUCED_IN(29);
-#endif /* __BIONIC_AVAILABILITY_GUARD(29) */
-
 #endif
 
 int pthread_sigmask(int __how, const sigset_t* _Nullable __new_set, sigset_t* _Nullable __old_set);
@@ -167,28 +172,25 @@ int pthread_sigmask(int __how, const sigset_t* _Nullable __new_set, sigset_t* _N
 int pthread_sigmask64(int __how, const sigset64_t* _Nullable __new_set, sigset64_t* _Nullable __old_set) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
-
-
 #if __BIONIC_AVAILABILITY_GUARD(23)
 int sigqueue(pid_t __pid, int __signal, const union sigval __value) __INTRODUCED_IN(23);
-int sigtimedwait(const sigset_t* _Nonnull __set, siginfo_t* _Nullable __info, const struct timespec* _Nullable __timeout) __INTRODUCED_IN(23);
 #endif /* __BIONIC_AVAILABILITY_GUARD(23) */
 
+#if __BIONIC_AVAILABILITY_GUARD(23)
+int sigtimedwait(const sigset_t* _Nonnull __set, siginfo_t* _Nullable __info, const struct timespec* _Nullable __timeout) __INTRODUCED_IN(23);
+#endif /* __BIONIC_AVAILABILITY_GUARD(23) */
 
 #if __BIONIC_AVAILABILITY_GUARD(28)
 int sigtimedwait64(const sigset64_t* _Nonnull __set, siginfo_t* _Nullable __info, const struct timespec* _Nullable __timeout) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
 
-
 #if __BIONIC_AVAILABILITY_GUARD(23)
 int sigwaitinfo(const sigset_t* _Nonnull __set, siginfo_t* _Nullable __info) __INTRODUCED_IN(23);
 #endif /* __BIONIC_AVAILABILITY_GUARD(23) */
 
-
 #if __BIONIC_AVAILABILITY_GUARD(28)
 int sigwaitinfo64(const sigset64_t* _Nonnull __set, siginfo_t* _Nullable __info) __INTRODUCED_IN(28);
 #endif /* __BIONIC_AVAILABILITY_GUARD(28) */
-
 
 /**
  * Buffer size suitable for any call to sig2str().
@@ -201,13 +203,16 @@ int sigwaitinfo64(const sigset64_t* _Nonnull __set, siginfo_t* _Nullable __info)
  * like "SEGV" (not including the "SIG" used in the constants).
  * SIG2STR_MAX is a safe size to use for the buffer.
  *
+ * Use strsignal() instead to convert the integer corresponding to SIGSEGV (say)
+ * into a string like "Segmentation violation".
+ *
  * Returns 0 on success, and returns -1 _without_ setting errno otherwise.
  *
- * Available since API level 36.
+ * Available since API level 36 (but see also strsignal()).
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(36)
 int sig2str(int __signal, char* _Nonnull __buf) __INTRODUCED_IN(36);
+#endif /* __BIONIC_AVAILABILITY_GUARD(36) */
 
 /**
  * [str2sig(3)](https://man7.org/linux/man-pages/man3/str2sig.3.html)
@@ -218,9 +223,9 @@ int sig2str(int __signal, char* _Nonnull __buf) __INTRODUCED_IN(36);
  *
  * Available since API level 36.
  */
+#if __BIONIC_AVAILABILITY_GUARD(36)
 int str2sig(const char* _Nonnull __name, int* _Nonnull __signal) __INTRODUCED_IN(36);
 #endif /* __BIONIC_AVAILABILITY_GUARD(36) */
-
 
 __END_DECLS
 

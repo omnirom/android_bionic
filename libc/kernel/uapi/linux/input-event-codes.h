@@ -455,6 +455,7 @@
 #define KEY_NOTIFICATION_CENTER 0x1bc
 #define KEY_PICKUP_PHONE 0x1bd
 #define KEY_HANGUP_PHONE 0x1be
+#define KEY_LINK_PHONE 0x1bf
 #define KEY_DEL_EOL 0x1c0
 #define KEY_DEL_EOS 0x1c1
 #define KEY_INS_LINE 0x1c2
@@ -752,7 +753,8 @@
 #define SW_MUTE_DEVICE 0x0e
 #define SW_PEN_INSERTED 0x0f
 #define SW_MACHINE_COVER 0x10
-#define SW_MAX 0x10
+#define SW_USB_INSERT 0x11
+#define SW_MAX 0x11
 #define SW_CNT (SW_MAX + 1)
 #define MSC_SERIAL 0x00
 #define MSC_PULSELED 0x01

@@ -385,12 +385,15 @@ struct drm_syncobj_destroy {
   __u32 pad;
 };
 #define DRM_SYNCOBJ_FD_TO_HANDLE_FLAGS_IMPORT_SYNC_FILE (1 << 0)
+#define DRM_SYNCOBJ_FD_TO_HANDLE_FLAGS_TIMELINE (1 << 1)
 #define DRM_SYNCOBJ_HANDLE_TO_FD_FLAGS_EXPORT_SYNC_FILE (1 << 0)
+#define DRM_SYNCOBJ_HANDLE_TO_FD_FLAGS_TIMELINE (1 << 1)
 struct drm_syncobj_handle {
   __u32 handle;
   __u32 flags;
   __s32 fd;
   __u32 pad;
+  __u64 point;
 };
 struct drm_syncobj_transfer {
   __u32 src_handle;
@@ -455,6 +458,11 @@ struct drm_crtc_queue_sequence {
   __u32 flags;
   __u64 sequence;
   __u64 user_data;
+};
+#define DRM_CLIENT_NAME_MAX_LEN 64
+struct drm_set_client_name {
+  __u64 name_len;
+  __u64 name;
 };
 #ifdef __cplusplus
 }
@@ -576,6 +584,7 @@ extern "C" {
 #define DRM_IOCTL_MODE_GETFB2 DRM_IOWR(0xCE, struct drm_mode_fb_cmd2)
 #define DRM_IOCTL_SYNCOBJ_EVENTFD DRM_IOWR(0xCF, struct drm_syncobj_eventfd)
 #define DRM_IOCTL_MODE_CLOSEFB DRM_IOWR(0xD0, struct drm_mode_closefb)
+#define DRM_IOCTL_SET_CLIENT_NAME DRM_IOWR(0xD1, struct drm_set_client_name)
 #define DRM_COMMAND_BASE 0x40
 #define DRM_COMMAND_END 0xA0
 struct drm_event {

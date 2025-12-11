@@ -49,7 +49,6 @@
 #include "private/bionic_defs.h"
 #include "private/bionic_globals.h"
 #include "private/bionic_tls.h"
-#include "private/thread_private.h"
 #include "pthread_internal.h"
 
 extern "C" int __system_properties_init(void);
@@ -59,10 +58,6 @@ extern "C" void scudo_malloc_set_pattern_fill_contents(int);
 __LIBC_HIDDEN__ constinit WriteProtected<libc_globals> __libc_globals;
 __LIBC_HIDDEN__ constinit _Atomic(bool) __libc_memtag_stack;
 __LIBC_HIDDEN__ constinit bool __libc_memtag_stack_abi;
-
-// Not public, but well-known in the BSDs.
-__BIONIC_WEAK_VARIABLE_FOR_NATIVE_BRIDGE
-const char* __progname;
 
 #if defined(__i386__) || defined(__x86_64__)
 // Default sizes based on the old hard-coded values for Atom/Silvermont (x86) and Core 2 (x86-64)...
@@ -107,11 +102,6 @@ static void __check_max_thread_id() {
   }
 }
 #endif
-
-static void arc4random_fork_handler() {
-  _rs_forked = 1;
-  _thread_arc4_lock();
-}
 
 __BIONIC_WEAK_FOR_NATIVE_BRIDGE
 void __libc_init_scudo() {
@@ -203,9 +193,12 @@ void __libc_init_common() {
 #endif
 }
 
+extern "C" void arc4random_mutex_lock();
+extern "C" void arc4random_mutex_unlock();
+
 void __libc_init_fork_handler() {
   // Register atfork handlers to take and release the arc4random lock.
-  pthread_atfork(arc4random_fork_handler, _thread_arc4_unlock, _thread_arc4_unlock);
+  pthread_atfork(arc4random_mutex_lock, arc4random_mutex_unlock, arc4random_mutex_unlock);
 }
 
 extern "C" void scudo_malloc_set_add_large_allocation_slack(int add_slack);

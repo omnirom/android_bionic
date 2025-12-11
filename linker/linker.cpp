@@ -376,18 +376,21 @@ static void parse_LD_LIBRARY_PATH(const char* path) {
   g_default_namespace.set_ld_library_paths(std::move(ld_libary_paths));
 }
 
+static bool is_proc_mounted() {
+  static bool result = (access("/proc/self/fd", F_OK) == 0);
+  return result;
+}
+
 static bool realpath_fd(int fd, std::string* realpath) {
   // proc_self_fd needs to be large enough to hold "/proc/self/fd/" plus an
   // integer, plus the NULL terminator.
   char proc_self_fd[32];
-  // We want to statically allocate this large buffer so that we don't grow
-  // the stack by too much.
-  static char buf[PATH_MAX];
-
   async_safe_format_buffer(proc_self_fd, sizeof(proc_self_fd), "/proc/self/fd/%d", fd);
+
+  char buf[PATH_MAX];
   auto length = readlink(proc_self_fd, buf, sizeof(buf));
   if (length == -1) {
-    if (!is_first_stage_init()) {
+    if (is_proc_mounted()) {
       DL_WARN("readlink(\"%s\" [fd=%d]) failed: %m", proc_self_fd, fd);
     }
     return false;
@@ -642,9 +645,10 @@ class LoadTask {
     si_->set_gap_size(elf_reader.gap_size());
     si_->set_should_pad_segments(elf_reader.should_pad_segments());
     si_->set_should_use_16kib_app_compat(elf_reader.should_use_16kib_app_compat());
+    si_->set_should_16kib_app_compat_use_rwx(elf_reader.should_16kib_app_compat_use_rwx());
     if (si_->should_use_16kib_app_compat()) {
-      si_->set_compat_relro_start(elf_reader.compat_relro_start());
-      si_->set_compat_relro_size(elf_reader.compat_relro_size());
+      si_->set_compat_code_start(elf_reader.compat_code_start());
+      si_->set_compat_code_size(elf_reader.compat_code_size());
     }
 
     return true;
@@ -844,7 +848,7 @@ static const ElfW(Sym)* dlsym_handle_lookup(soinfo* si,
   // Since RTLD_GLOBAL is always set for the main executable and all dt_needed shared
   // libraries and they are loaded in breath-first (correct) order we can just execute
   // dlsym(RTLD_DEFAULT, ...); instead of doing two stage lookup.
-  if (si == solist_get_somain()) {
+  if (si == solist_get_executable()) {
     return dlsym_linear_lookup(&g_default_namespace, name, vi, found, nullptr, RTLD_DEFAULT);
   }
 
@@ -981,7 +985,7 @@ static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
   if (realpath_fd(fd, realpath)) {
     *realpath += separator;
   } else {
-    if (!is_first_stage_init()) {
+    if (is_proc_mounted()) {
       DL_WARN("unable to get realpath for the library \"%s\". Will use given path.",
               normalized_path.c_str());
     }
@@ -1014,7 +1018,7 @@ static int open_library_at_path(ZipArchiveCache* zip_archive_cache,
     if (fd != -1) {
       *file_offset = 0;
       if (!realpath_fd(fd, realpath)) {
-        if (!is_first_stage_init()) {
+        if (is_proc_mounted()) {
           DL_WARN("unable to get realpath for the library \"%s\". Will use given path.", path);
         }
         *realpath = path;
@@ -1326,7 +1330,7 @@ static bool load_library(android_namespace_t* ns,
 
     std::string realpath;
     if (!realpath_fd(extinfo->library_fd, &realpath)) {
-      if (!is_first_stage_init()) {
+      if (is_proc_mounted()) {
         DL_WARN("unable to get realpath for the library \"%s\" by extinfo->library_fd. "
                 "Will use given name.",
                 name);
@@ -1653,8 +1657,13 @@ bool find_libraries(android_namespace_t* ns,
       return t->get_soinfo() == si;
     };
 
-    if (!si->is_linked() &&
-        std::find_if(load_list.begin(), load_list.end(), pred) == load_list.end() ) {
+    // If the executable depends on itself (directly or indirectly), then the executable ends up on
+    // the list of LoadTask objects (b/328822319). It is already loaded, so don't try to load it
+    // again, which will fail because its ElfReader isn't ready. This can happen if ldd is invoked
+    // on a shared library that depends on itself, which happens with HWASan-ified Bionic libraries
+    // like libc.so, libm.so, etc.
+    if (!si->is_linked() && !si->is_main_executable() &&
+        std::find_if(load_list.begin(), load_list.end(), pred) == load_list.end()) {
       load_list.push_back(task);
     }
   }
@@ -1858,7 +1867,7 @@ static soinfo* find_library(android_namespace_t* ns,
   soinfo* si = nullptr;
 
   if (name == nullptr) {
-    si = solist_get_somain();
+    si = solist_get_head();
   } else if (!find_libraries(ns,
                              needed_by,
                              &name,
@@ -3324,7 +3333,7 @@ bool soinfo::prelink_image(bool dlext_use_relro) {
   // they could no longer be found by DT_NEEDED from another library.
   // The main executable does not need to have a DT_SONAME.
   // The linker has a DT_SONAME, but the soname_ field is initialized later on.
-  if (soname_.empty() && this != solist_get_somain() && !relocating_linker &&
+  if (soname_.empty() && this != solist_get_executable() && !relocating_linker &&
       get_application_target_sdk_version() < 23) {
     soname_ = basename(realpath_.c_str());
     // The `if` above means we don't get here for targetSdkVersion >= 23,
@@ -3414,6 +3423,12 @@ bool soinfo::link_image(const SymbolLookupList& lookup_list, soinfo* local_group
     return false;
   }
 
+  // Now that we've finished linking we can apply execute permission to code segments in compat
+  // loaded binaries, and remove write permission from .text and GNU RELRO in RX|RW compat mode.
+  if (!protect_16kib_app_compat_code()) {
+    return false;
+  }
+
   if (should_tag_memtag_globals()) {
     std::list<std::string>* vma_names_ptr = vma_names();
     // should_tag_memtag_globals -> __aarch64__ -> vma_names() != nullptr
@@ -3444,18 +3459,31 @@ bool soinfo::link_image(const SymbolLookupList& lookup_list, soinfo* local_group
 
 bool soinfo::protect_relro() {
   if (should_use_16kib_app_compat_) {
-    if (phdr_table_protect_gnu_relro_16kib_compat(compat_relro_start_, compat_relro_size_) < 0) {
-      DL_ERR("can't enable COMPAT GNU RELRO protection for \"%s\": %s", get_realpath(),
-             strerror(errno));
-      return false;
-    }
-  } else {
-    if (phdr_table_protect_gnu_relro(phdr, phnum, load_bias, should_pad_segments_,
-                                     should_use_16kib_app_compat_) < 0) {
-      DL_ERR("can't enable GNU RELRO protection for \"%s\": %m", get_realpath());
-      return false;
-    }
+    return true;
   }
+
+  if (phdr_table_protect_gnu_relro(phdr, phnum, load_bias, should_pad_segments_) < 0) {
+    DL_ERR("can't enable GNU RELRO protection for \"%s\": %m", get_realpath());
+    return false;
+  }
+
+  return true;
+}
+
+bool soinfo::protect_16kib_app_compat_code() {
+  if (!should_use_16kib_app_compat_) {
+    return true;
+  }
+
+  auto note_gnu_property = GnuPropertySection(this);
+  if (phdr_table_protect_16kib_app_compat_code(compat_code_start_, compat_code_size_,
+                                               should_16kib_app_compat_use_rwx_,
+                                               &note_gnu_property) < 0) {
+    DL_ERR("failed to set execute permission for compat loaded binary \"%s\": %s", get_realpath(),
+           strerror(errno));
+    return false;
+  }
+
   return true;
 }
 
@@ -3644,8 +3672,8 @@ std::vector<android_namespace_t*> init_default_namespaces(const char* executable
     LD_DEBUG(any, "[ Reading linker config \"%s\" ]", ld_config_file_path.c_str());
     ScopedTrace trace(("linker config " + ld_config_file_path).c_str());
     std::string error_msg;
-    if (!Config::read_binary_config(ld_config_file_path.c_str(), executable_path, g_is_asan, g_is_hwasan,
-                                    &config, &error_msg)) {
+    if (!Config::read_config_for_binary(ld_config_file_path.c_str(), executable_path,
+                                        g_is_asan, g_is_hwasan, &config, &error_msg)) {
       if (!error_msg.empty()) {
         DL_WARN("Warning: couldn't read '%s' for '%s' (using default configuration instead): %s",
                 ld_config_file_path.c_str(), executable_path, error_msg.c_str());
@@ -3711,7 +3739,7 @@ std::vector<android_namespace_t*> init_default_namespaces(const char* executable
   }
   // we can no longer rely on the fact that libdl.so is part of default namespace
   // this is why we want to add ld-android.so to all namespaces from ld.config.txt
-  soinfo* ld_android_so = solist_get_head();
+  soinfo* ld_android_so = solist_get_linker();
 
   // we also need vdso to be available for all namespaces (if present)
   soinfo* vdso = solist_get_vdso();

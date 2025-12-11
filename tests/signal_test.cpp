@@ -26,11 +26,13 @@
 #include <thread>
 
 #include <android-base/macros.h>
+#include <android-base/test_utils.h>
 #include <android-base/threads.h>
 
 #include <gtest/gtest.h>
 
 #include "SignalUtils.h"
+#include "sme_utils.h"
 #include "utils.h"
 
 using namespace std::chrono_literals;
@@ -1073,29 +1075,28 @@ TEST(signal, str2sig) {
 }
 
 #if defined(__aarch64__)
-__attribute__((target("arch=armv9+sme"))) __arm_new("za") static void FunctionUsingZA() {
+static void raises_sigusr1() {
   raise(SIGUSR1);
 }
 
 TEST(signal, sme_tpidr2_clear) {
   // When using SME, on entering a signal handler the kernel should clear TPIDR2_EL0, but this was
   // not always correctly done. This tests checks if the kernel correctly clears it or not.
-  if (!(getauxval(AT_HWCAP2) & HWCAP2_SME)) {
+  if (!sme_is_enabled()) {
     GTEST_SKIP() << "SME is not enabled on device.";
   }
 
   static uint64_t tpidr2 = 0;
   struct sigaction handler = {};
   handler.sa_sigaction = [](int, siginfo_t*, void*) {
-    uint64_t zero = 0;
-    __asm__ __volatile__(".arch_extension sme; mrs %0, TPIDR2_EL0" : "=r"(tpidr2));
-    __asm__ __volatile__(".arch_extension sme; msr TPIDR2_EL0, %0" : : "r"(zero));  // Clear TPIDR2.
+    tpidr2 = sme_tpidr2_el0();
+    sme_set_tpidr2_el0(0UL);
   };
   handler.sa_flags = SA_SIGINFO;
 
   ASSERT_EQ(0, sigaction(SIGUSR1, &handler, nullptr));
 
-  FunctionUsingZA();
+  sme_dormant_caller(&raises_sigusr1);
 
   ASSERT_EQ(0x0UL, tpidr2)
       << "Broken kernel! TPIDR2_EL0 was not null in the signal handler! "
@@ -1103,3 +1104,42 @@ TEST(signal, sme_tpidr2_clear) {
       << "https://lore.kernel.org/linux-arm-kernel/20250417190113.3778111-1-mark.rutland@arm.com/";
 }
 #endif
+
+TEST(signal, psignal) {
+  CapturedStderr cap;
+  psignal(SIGINT, "a b c");
+  ASSERT_EQ(cap.str(), "a b c: Interrupt\n");
+}
+
+TEST(signal, psignal_null) {
+  CapturedStderr cap;
+  psignal(SIGINT, nullptr);
+  ASSERT_EQ(cap.str(), "Interrupt\n");
+}
+
+TEST(signal, psignal_empty) {
+  CapturedStderr cap;
+  psignal(SIGINT, "");
+  ASSERT_EQ(cap.str(), "Interrupt\n");
+}
+
+TEST(signal, psiginfo) {
+  CapturedStderr cap;
+  siginfo_t si{.si_signo = SIGINT};
+  psiginfo(&si, "a b c");
+  ASSERT_EQ(cap.str(), "a b c: Interrupt\n");
+}
+
+TEST(signal, psiginfo_null) {
+  CapturedStderr cap;
+  siginfo_t si{.si_signo = SIGINT};
+  psiginfo(&si, nullptr);
+  ASSERT_EQ(cap.str(), "Interrupt\n");
+}
+
+TEST(signal, psiginfo_empty) {
+  CapturedStderr cap;
+  siginfo_t si{.si_signo = SIGINT};
+  psiginfo(&si, "");
+  ASSERT_EQ(cap.str(), "Interrupt\n");
+}

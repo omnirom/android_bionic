@@ -37,6 +37,8 @@
 #include <sys/types.h>
 #include <time.h>
 
+__BEGIN_DECLS
+
 #define _PATH_UTMP      "/var/run/utmp"
 #define _PATH_WTMP      "/var/log/wtmp"
 #define _PATH_LASTLOG   "/var/log/lastlog"
@@ -94,8 +96,6 @@ struct utmp {
 #define ut_time ut_tv.tv_sec
 #define ut_addr ut_addr_v6[0]
 
-__BEGIN_DECLS
-
 /**
  * Returns -1 and sets errno to ENOTSUP.
  */
@@ -131,10 +131,8 @@ void endutent(void);
  *
  * Available since API level 23.
  */
-
 #if __BIONIC_AVAILABILITY_GUARD(23)
 int login_tty(int __fd) __INTRODUCED_IN(23);
 #endif /* __BIONIC_AVAILABILITY_GUARD(23) */
-
 
 __END_DECLS

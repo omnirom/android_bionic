@@ -28,6 +28,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/random.h>
 #include <unistd.h>
 
@@ -50,8 +51,8 @@ static int getentropy_urandom(void* buffer, size_t buffer_size, int saved_errno)
 }
 
 int getentropy(void* buffer, size_t buffer_size) {
-  if (buffer_size > 256) {
-    errno = EIO;
+  if (buffer_size > GETENTROPY_MAX) {
+    errno = EINVAL;
     return -1;
   }
 
@@ -62,11 +63,17 @@ int getentropy(void* buffer, size_t buffer_size) {
     long count = TEMP_FAILURE_RETRY(getrandom(static_cast<char*>(buffer) + collected,
                                               buffer_size - collected, GRND_NONBLOCK));
     if (count == -1) {
+      // One of several things could have gone wrong:
       // EAGAIN: there isn't enough entropy right now.
       // ENOSYS/EINVAL: getrandom(2) or GRND_NONBLOCK isn't supported.
       // EFAULT: `buffer` is invalid.
-      // Try /dev/urandom regardless because it can't hurt,
+      // Realistically we're here because of EAGAIN,
+      // for which /dev/urandom is the solution ---
+      // it'll return low entropy randomness where getrandom() won't,
+      // but we fall back /dev/urandom for all cases because it can't hurt,
       // and we don't need to optimize the EFAULT case.
+      // See https://man7.org/linux/man-pages/man7/random.7.html for getrandom()
+      // vs /dev/random vs /dev/urandom.
       // See http://b/33059407 and http://b/67015565.
       return getentropy_urandom(buffer, buffer_size, saved_errno);
     }

@@ -47,6 +47,12 @@ enum hsmp_message_ids {
   HSMP_GET_METRIC_TABLE_VER,
   HSMP_GET_METRIC_TABLE,
   HSMP_GET_METRIC_TABLE_DRAM_ADDR,
+  HSMP_SET_XGMI_PSTATE_RANGE,
+  HSMP_CPU_RAIL_ISO_FREQ_POLICY,
+  HSMP_DFC_ENABLE_CTRL,
+  HSMP_GET_RAPL_UNITS = 0x30,
+  HSMP_GET_RAPL_CORE_COUNTER,
+  HSMP_GET_RAPL_PACKAGE_COUNTER,
   HSMP_MSG_ID_MAX,
 };
 struct hsmp_message {
@@ -60,135 +66,20 @@ enum hsmp_msg_type {
   HSMP_RSVD = - 1,
   HSMP_SET = 0,
   HSMP_GET = 1,
+  HSMP_SET_GET = 2,
 };
 enum hsmp_proto_versions {
   HSMP_PROTO_VER2 = 2,
   HSMP_PROTO_VER3,
   HSMP_PROTO_VER4,
   HSMP_PROTO_VER5,
-  HSMP_PROTO_VER6
+  HSMP_PROTO_VER6,
+  HSMP_PROTO_VER7
 };
 struct hsmp_msg_desc {
   int num_args;
   int response_sz;
   enum hsmp_msg_type type;
-};
-static const struct hsmp_msg_desc hsmp_msg_desc_table[] = {
- {
-    0, 0, HSMP_RSVD
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    0, 0, HSMP_SET
-  }
- , {
-    0, 2, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    1, 1, HSMP_GET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    1, 1, HSMP_SET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    1, 0, HSMP_SET
-  }
- , {
-    0, 1, HSMP_GET
-  }
- , {
-    0, 0, HSMP_GET
-  }
- , {
-    0, 2, HSMP_GET
-  }
- ,
 };
 struct hsmp_metric_table {
   __u32 accumulation_counter;

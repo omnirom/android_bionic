@@ -34,6 +34,8 @@
 #include <bits/wchar_limits.h>
 #include <stddef.h>
 
+__BEGIN_DECLS
+
 typedef signed char __int8_t;
 typedef unsigned char __uint8_t;
 typedef short __int16_t;
@@ -167,23 +169,23 @@ typedef int64_t       intmax_t;
 #define INT16_MAX        (32767)
 #define INT_LEAST16_MIN  INT16_MIN
 #define INT_LEAST16_MAX  INT16_MAX
-#define INT_FAST16_MIN   INT32_MIN
-#define INT_FAST16_MAX   INT32_MAX
+#define INT_FAST16_MIN   (-__LONG_MAX__ - 1L)
+#define INT_FAST16_MAX   __LONG_MAX__
 
 #define UINT16_MAX       (65535)
 #define UINT_LEAST16_MAX UINT16_MAX
-#define UINT_FAST16_MAX  UINT32_MAX
+#define UINT_FAST16_MAX  (__LONG_MAX__ * 2UL + 1UL)
 
 #define INT32_MIN        (-2147483647-1)
 #define INT32_MAX        (2147483647)
 #define INT_LEAST32_MIN  INT32_MIN
 #define INT_LEAST32_MAX  INT32_MAX
-#define INT_FAST32_MIN   INT32_MIN
-#define INT_FAST32_MAX   INT32_MAX
+#define INT_FAST32_MIN   (-__LONG_MAX__ - 1L)
+#define INT_FAST32_MAX   __LONG_MAX__
 
 #define UINT32_MAX       (4294967295U)
 #define UINT_LEAST32_MAX UINT32_MAX
-#define UINT_FAST32_MAX  UINT32_MAX
+#define UINT_FAST32_MAX  (__LONG_MAX__ * 2UL + 1UL)
 
 #define INT64_MIN        (INT64_C(-9223372036854775807)-1)
 #define INT64_MAX        (INT64_C(9223372036854775807))
@@ -196,35 +198,67 @@ typedef int64_t       intmax_t;
 #define UINT_LEAST64_MAX UINT64_MAX
 #define UINT_FAST64_MAX  UINT64_MAX
 
-#define INTMAX_MIN       INT64_MIN
-#define INTMAX_MAX       INT64_MAX
-#define UINTMAX_MAX      UINT64_MAX
+#define INTMAX_MAX __INTMAX_MAX__
+#define INTMAX_MIN (-__INTMAX_MAX__-1)
+#define UINTMAX_MAX __UINTMAX_MAX__
 
 #define SIG_ATOMIC_MAX   INT32_MAX
 #define SIG_ATOMIC_MIN   INT32_MIN
 
-#if defined(__WINT_UNSIGNED__)
-#  define WINT_MAX       UINT32_MAX
-#  define WINT_MIN       0
-#else
-#  define WINT_MAX       INT32_MAX
-#  define WINT_MIN       INT32_MIN
-#endif
+#define WINT_MAX       UINT32_MAX
+#define WINT_MIN       0
 
-#if defined(__LP64__)
-#  define INTPTR_MIN     INT64_MIN
-#  define INTPTR_MAX     INT64_MAX
-#  define UINTPTR_MAX    UINT64_MAX
-#  define PTRDIFF_MIN    INT64_MIN
-#  define PTRDIFF_MAX    INT64_MAX
-#  define SIZE_MAX       UINT64_MAX
-#else
-#  define INTPTR_MIN     INT32_MIN
-#  define INTPTR_MAX     INT32_MAX
-#  define UINTPTR_MAX    UINT32_MAX
-#  define PTRDIFF_MIN    INT32_MIN
-#  define PTRDIFF_MAX    INT32_MAX
-#  define SIZE_MAX       UINT32_MAX
-#endif
+#define INTPTR_MAX __INTPTR_MAX__
+#define INTPTR_MIN (-__INTPTR_MAX__-1)
+#define UINTPTR_MAX __UINTPTR_MAX__
+
+#define PTRDIFF_MAX __PTRDIFF_MAX__
+#define PTRDIFF_MIN (-__PTRDIFF_MAX__-1)
+
+#define SIZE_MAX __SIZE_MAX__
+
+#define INT8_WIDTH 8
+#define UINT8_WIDTH 8
+#define INT16_WIDTH 16
+#define UINT16_WIDTH 16
+#define INT32_WIDTH 32
+#define UINT32_WIDTH 32
+#define INT64_WIDTH 64
+#define UINT64_WIDTH 64
+
+#define INT_FAST8_WIDTH 8
+#define UINT_FAST8_WIDTH 8
+#define INT_FAST16_WIDTH __WORDSIZE
+#define UINT_FAST16_WIDTH __WORDSIZE
+#define INT_FAST32_WIDTH __WORDSIZE
+#define UINT_FAST32_WIDTH __WORDSIZE
+#define INT_FAST64_WIDTH 64
+#define UINT_FAST64_WIDTH 64
+
+#define INT_LEAST8_WIDTH 8
+#define UINT_LEAST8_WIDTH 8
+#define INT_LEAST16_WIDTH 16
+#define UINT_LEAST16_WIDTH 16
+#define INT_LEAST32_WIDTH 32
+#define UINT_LEAST32_WIDTH 32
+#define INT_LEAST64_WIDTH 64
+#define UINT_LEAST64_WIDTH 64
+
+#define WCHAR_WIDTH __WCHAR_WIDTH__
+#define WINT_WIDTH __WINT_WIDTH__
+
+#define INTPTR_WIDTH __INTPTR_WIDTH__
+#define UINTPTR_WIDTH __UINTPTR_WIDTH__
+
+#define INTMAX_WIDTH __INTMAX_WIDTH__
+#define UINTMAX_WIDTH __UINTMAX_WIDTH__
+
+#define PTRDIFF_WIDTH __PTRDIFF_WIDTH__
+
+#define SIZE_WIDTH __SIZE_WIDTH__
+
+#define SIG_ATOMIC_WIDTH __SIG_ATOMIC_WIDTH__
+
+__END_DECLS
 
 #endif /* _STDINT_H */

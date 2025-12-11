@@ -57,8 +57,6 @@ ssize_t readv(int __fd, const struct iovec* _Nonnull __iov, int __count);
  */
 ssize_t writev(int __fd, const struct iovec* _Nonnull __iov, int __count);
 
-#if defined(__USE_GNU)
-
 /**
  * [preadv(2)](https://man7.org/linux/man-pages/man2/preadv.2.html) reads
  * from an fd into the `__count` buffers described by `__iov`, starting at
@@ -67,11 +65,11 @@ ssize_t writev(int __fd, const struct iovec* _Nonnull __iov, int __count);
  * Returns the number of bytes read on success,
  * and returns -1 and sets `errno` on failure.
  *
- * Available since API level 24.
+ * Available since API level 24 when compiling with `_GNU_SOURCE`.
  */
-
-#if __BIONIC_AVAILABILITY_GUARD(24)
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(24)
 ssize_t preadv(int __fd, const struct iovec* _Nonnull __iov, int __count, off_t __offset) __RENAME_IF_FILE_OFFSET64(preadv64) __INTRODUCED_IN(24);
+#endif
 
 /**
  * [pwritev(2)](https://man7.org/linux/man-pages/man2/pwritev.2.html) writes
@@ -81,25 +79,29 @@ ssize_t preadv(int __fd, const struct iovec* _Nonnull __iov, int __count, off_t 
  * Returns the number of bytes written on success,
  * and returns -1 and sets `errno` on failure.
  *
- * Available since API level 24.
+ * Available since API level 24 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(24)
 ssize_t pwritev(int __fd, const struct iovec* _Nonnull __iov, int __count, off_t __offset) __RENAME_IF_FILE_OFFSET64(pwritev64) __INTRODUCED_IN(24);
+#endif
 
 /**
  * Like preadv() but with a 64-bit offset even in a 32-bit process.
  *
- * Available since API level 24.
+ * Available since API level 24 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(24)
 ssize_t preadv64(int __fd, const struct iovec* _Nonnull __iov, int __count, off64_t __offset) __INTRODUCED_IN(24);
+#endif
 
 /**
  * Like pwritev() but with a 64-bit offset even in a 32-bit process.
  *
- * Available since API level 24.
+ * Available since API level 24 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(24)
 ssize_t pwritev64(int __fd, const struct iovec* _Nonnull __iov, int __count, off64_t __offset) __INTRODUCED_IN(24);
-#endif /* __BIONIC_AVAILABILITY_GUARD(24) */
-
+#endif
 
 /**
  * [preadv2(2)](https://man7.org/linux/man-pages/man2/preadv2.2.html) reads
@@ -109,11 +111,11 @@ ssize_t pwritev64(int __fd, const struct iovec* _Nonnull __iov, int __count, off
  * Returns the number of bytes read on success,
  * and returns -1 and sets `errno` on failure.
  *
- * Available since API level 33.
+ * Available since API level 33 when compiling with `_GNU_SOURCE`.
  */
-
-#if __BIONIC_AVAILABILITY_GUARD(33)
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(33)
 ssize_t preadv2(int __fd, const struct iovec* _Nonnull __iov, int __count, off_t __offset, int __flags) __RENAME_IF_FILE_OFFSET64(preadv64v2) __INTRODUCED_IN(33);
+#endif
 
 /**
  * [pwritev2(2)](https://man7.org/linux/man-pages/man2/pwritev2.2.html) writes
@@ -123,25 +125,29 @@ ssize_t preadv2(int __fd, const struct iovec* _Nonnull __iov, int __count, off_t
  * Returns the number of bytes written on success,
  * and returns -1 and sets `errno` on failure.
  *
- * Available since API level 33.
+ * Available since API level 33 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(33)
 ssize_t pwritev2(int __fd, const struct iovec* _Nonnull __iov, int __count, off_t __offset, int __flags) __RENAME_IF_FILE_OFFSET64(pwritev64v2) __INTRODUCED_IN(33);
+#endif
 
 /**
  * Like preadv2() but with a 64-bit offset even in a 32-bit process.
  *
- * Available since API level 33.
+ * Available since API level 33 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(33)
 ssize_t preadv64v2(int __fd, const struct iovec* _Nonnull __iov, int __count, off64_t __offset, int __flags) __INTRODUCED_IN(33);
+#endif
 
 /**
  * Like pwritev2() but with a 64-bit offset even in a 32-bit process.
  *
- * Available since API level 33.
+ * Available since API level 33 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(33)
 ssize_t pwritev64v2(int __fd, const struct iovec* _Nonnull __iov, int __count, off64_t __offset, int __flags) __INTRODUCED_IN(33);
-#endif /* __BIONIC_AVAILABILITY_GUARD(33) */
-
+#endif
 
 /**
  * [process_vm_readv(2)](https://man7.org/linux/man-pages/man2/process_vm_readv.2.html)
@@ -150,11 +156,11 @@ ssize_t pwritev64v2(int __fd, const struct iovec* _Nonnull __iov, int __count, o
  * Returns the number of bytes read on success,
  * and returns -1 and sets `errno` on failure.
  *
- * Available since API level 23.
+ * Available since API level 23 when compiling with `_GNU_SOURCE`.
  */
-
-#if __BIONIC_AVAILABILITY_GUARD(23)
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(23)
 ssize_t process_vm_readv(pid_t __pid, const struct iovec* __BIONIC_COMPLICATED_NULLNESS __local_iov, unsigned long __local_iov_count, const struct iovec* __BIONIC_COMPLICATED_NULLNESS __remote_iov, unsigned long __remote_iov_count, unsigned long __flags) __INTRODUCED_IN(23);
+#endif
 
 /**
  * [process_vm_writev(2)](https://man7.org/linux/man-pages/man2/process_vm_writev.2.html)
@@ -163,12 +169,10 @@ ssize_t process_vm_readv(pid_t __pid, const struct iovec* __BIONIC_COMPLICATED_N
  * Returns the number of bytes read on success,
  * and returns -1 and sets `errno` on failure.
  *
- * Available since API level 23.
+ * Available since API level 23 when compiling with `_GNU_SOURCE`.
  */
+#if defined(__USE_GNU) && __BIONIC_AVAILABILITY_GUARD(23)
 ssize_t process_vm_writev(pid_t __pid, const struct iovec* __BIONIC_COMPLICATED_NULLNESS __local_iov, unsigned long __local_iov_count, const struct iovec* __BIONIC_COMPLICATED_NULLNESS __remote_iov, unsigned long __remote_iov_count, unsigned long __flags) __INTRODUCED_IN(23);
-#endif /* __BIONIC_AVAILABILITY_GUARD(23) */
-
-
 #endif
 
 __END_DECLS
